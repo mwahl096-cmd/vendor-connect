@@ -28,10 +28,7 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(
-    DevicePreview(
-      enabled: !kReleaseMode,
-      builder: (context) => const MyApp(),
-    ),
+    DevicePreview(enabled: !kReleaseMode, builder: (context) => const MyApp()),
   );
 }
 
@@ -69,7 +66,9 @@ class MyApp extends StatelessWidget {
               foregroundColor: Colors.white,
               // Avoid infinite width in Rows: specify finite min width
               minimumSize: const Size(64, 48),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
           inputDecorationTheme: InputDecorationTheme(
@@ -88,7 +87,7 @@ class MyApp extends StatelessWidget {
               borderSide: BorderSide(color: Color(0xFF2BBFD4), width: 1.5),
             ),
           ),
-          tabBarTheme: const TabBarTheme(
+          tabBarTheme: const TabBarThemeData(
             labelColor: Color(0xFF2BBFD4),
             unselectedLabelColor: Colors.black54,
             indicatorColor: Color(0xFF2BBFD4),
