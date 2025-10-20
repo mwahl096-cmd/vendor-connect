@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "66150861995",
+    "project_id": "vendor-connect-3812e",
+    "storage_bucket": "vendor-connect-3812e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:66150861995:android:73b30f3f92bbe17e1e3bee",
+        "android_client_info": {
+          "package_name": "com.example.vendorconnectapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4CQjyPhpGACwG4zTxVJlM3vZcpSvvDFA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

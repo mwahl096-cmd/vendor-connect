@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && uid == request.auth.uid;
+      allow update: if isSignedIn() && (uid == request.auth.uid || isAdmin());
+    }
+
+    match /articles/{articleId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
+        )
+      );
+      allow create, update, delete: if isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn() && (
+          isAdmin() ||
+          (!('visibleTo' in resource.data) ||
+            resource.data.visibleTo == 'public')
+        );
+        allow create: if isSignedIn() && (
+          get(/databases/$(database)/documents/articles/$(articleId)).data.allowComments == true
+        );
+        allow update, delete: if isAdmin() ||
+          (isSignedIn() && request.auth.uid == resource.data.authorUid);
+      }
+    }
+
+    match /reads/{readId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
+        )
+      );
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid && (
+        isAdmin() || (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
+        )
+      );
+      allow update, delete: if isAdmin() ||
+        (isSignedIn() && request.resource.data.uid == request.auth.uid);
+    }
+
+    match /fcmTokens/{tokenId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && (
+        (request.resource.data.uid == request.auth.uid) ||
+        (resource.data.uid == request.auth.uid)
+      );
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+  }
+}
