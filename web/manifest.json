@@ -1,6 +1,7 @@
 {
-    "name": "vendorconnectapp",
-    "short_name": "vendorconnectapp",
+    "name": "Vendor Connect",
+    "short_name": "VendorConnect",
+    "version": "1.0.0",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
