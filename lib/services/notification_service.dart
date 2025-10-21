@@ -22,7 +22,12 @@ class NotificationService extends ChangeNotifier {
 
   Future<void> init() async {
     if (_initialized) return;
-    await _setupLocalNotifications();
+
+    // Skip local notification channel wiring on iOS temporarily.
+    if (!kIsWeb && defaultTargetPlatform != TargetPlatform.iOS) {
+      await _setupLocalNotifications();
+    }
+
     try {
       await _fcm.setAutoInitEnabled(true);
     } catch (_) {}
