@@ -56,11 +56,7 @@
   [FLTFirebaseCorePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseCorePlugin"]];
   [FLTFirebaseMessagingPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseMessagingPlugin"]];
   [FlutterLocalNotificationsPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterLocalNotificationsPlugin"]];
-  NSObject<FlutterPluginRegistrar>* sharedPreferencesRegistrar =
-      [registry registrarForPlugin:@"SharedPreferencesPlugin"];
-  if (sharedPreferencesRegistrar) {
-    [SharedPreferencesPlugin registerWithRegistrar:sharedPreferencesRegistrar];
-  }
+  [SharedPreferencesPlugin registerWithRegistrar:[registry registrarForPlugin:@"SharedPreferencesPlugin"]];
   [URLLauncherPlugin registerWithRegistrar:[registry registrarForPlugin:@"URLLauncherPlugin"]];
 }
 
