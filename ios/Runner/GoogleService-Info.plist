@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.vendorconnectapp</string>
+	<string>com.vendorconnectapp.mobile</string>
 	<key>PROJECT_ID</key>
 	<string>vendor-connect-3812e</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:66150861995:ios:e11605bfd9d7a1831e3bee</string>
+	<string>1:66150861995:ios:057c57cbf4110da81e3bee</string>
 </dict>
 </plist>
