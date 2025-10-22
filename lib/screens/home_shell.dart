@@ -53,36 +53,59 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ),
       body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        items: [
-          BottomNavigationBarItem(
-            icon: uid == null
-                ? const Icon(Icons.article)
-                : StreamBuilder<int>(
-                    stream: FirestoreService().watchUnreadCount(uid),
-                    builder: (context, snap) {
-                      final count = snap.data ?? 0;
-                      // Update app badge in background
-                      context.read<NotificationService>().setBadgeCount(count);
-                      final icon = const Icon(Icons.article);
-                      if (count <= 0) return icon;
-                      return badges.Badge(
-                        position: badges.BadgePosition.topEnd(top: -12, end: -12),
-                        badgeContent: Text(
-                          count > 99 ? '99+' : '$count',
-                          style: const TextStyle(color: Colors.white, fontSize: 10),
-                        ),
-                        child: icon,
-                      );
-                    },
-                  ),
-            label: 'Articles',
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF2BBFD4),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
           ),
-          const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          child: BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            selectedItemColor: Colors.white,
+            unselectedItemColor: Colors.white70,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+            showUnselectedLabels: true,
+            currentIndex: _index,
+            onTap: (i) => setState(() => _index = i),
+            items: [
+              BottomNavigationBarItem(
+                icon: uid == null
+                    ? const Icon(Icons.article)
+                    : StreamBuilder<int>(
+                        stream: FirestoreService().watchUnreadCount(uid),
+                        builder: (context, snap) {
+                          final count = snap.data ?? 0;
+                          // Update app badge in background
+                          context.read<NotificationService>().setBadgeCount(count);
+                          final icon = const Icon(Icons.article);
+                          if (count <= 0) return icon;
+                          return badges.Badge(
+                            position: badges.BadgePosition.topEnd(top: -12, end: -12),
+                            badgeContent: Text(
+                              count > 99 ? '99+' : '$count',
+                              style: const TextStyle(color: Colors.white, fontSize: 10),
+                            ),
+                            child: icon,
+                          );
+                        },
+                      ),
+                label: 'Articles',
+              ),
+              const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
+              const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+            ],
+          ),
+        ),
       ),
     );
   }

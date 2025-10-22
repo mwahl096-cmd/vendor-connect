@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
+import '../utils/time_utils.dart';
 
 import 'manage_articles_screen.dart';
 import 'admin_vendors_screen.dart';
@@ -22,12 +23,18 @@ class AdminDashboardScreen extends StatelessWidget {
       .map((s) => s.size);
 
   Stream<int> _countComments24h() {
-    final since = Timestamp.fromDate(DateTime.now().subtract(const Duration(hours: 24)));
+    final window = const Duration(hours: 24);
+    final since = Timestamp.fromDate(DateTime.now().subtract(window));
     return FirebaseFirestore.instance
         .collectionGroup(AppConfig.commentsSubcollection)
         .where('createdAt', isGreaterThan: since)
         .snapshots()
-        .map((s) => s.size);
+        .map((snapshot) {
+      final reference = DateTime.now();
+      return snapshot.docs
+          .where((doc) => isWithinWindow(doc.data()['createdAt'], window, reference: reference))
+          .length;
+    });
   }
 
   @override

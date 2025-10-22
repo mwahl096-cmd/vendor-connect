@@ -39,10 +39,30 @@ class ArticlesListScreen extends StatelessWidget {
           child: Scaffold(
             appBar: AppBar(
               title: const Text('Vendor Articles'),
-              bottom: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                tabs: [for (final c in categories) Tab(text: c)],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(52),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TabBar(
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.white70,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+                    indicator: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    indicatorPadding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    tabs: [for (final c in categories) Tab(text: c)],
+                  ),
+                ),
               ),
             ),
             body: TabBarView(

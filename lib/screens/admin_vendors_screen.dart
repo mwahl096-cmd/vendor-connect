@@ -28,6 +28,14 @@ class _AdminVendorsScreenState extends State<AdminVendorsScreen> {
         appBar: AppBar(
           title: const Text('Admin - Vendors'),
           bottom: const TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            labelStyle: TextStyle(fontWeight: FontWeight.w700),
+            unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500),
+            indicator: UnderlineTabIndicator(
+              borderSide: BorderSide(width: 4, color: Colors.white),
+              insets: EdgeInsets.symmetric(horizontal: 32),
+            ),
             tabs: [Tab(text: 'Pending'), Tab(text: 'Active')],
           ),
         ),
@@ -201,68 +209,175 @@ class _VendorListState extends State<_VendorList> {
           );
         }
 
-        return ListView.separated(
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
           itemCount: visibleDocs.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (context, i) {
             final d = visibleDocs[i];
             final m = d.data();
             final deleting = _deletingIds.contains(d.id);
-            return ListTile(
-              enabled: !deleting,
-              onTap:
-                  deleting
+            final primaryColor = const Color(0xFF2BBFD4);
+            final borderRadius = BorderRadius.circular(16);
+            final cardShape = RoundedRectangleBorder(
+              borderRadius: borderRadius,
+              side: BorderSide(color: Colors.grey.shade200),
+            );
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Material(
+                color: Colors.white,
+                elevation: 2,
+                shadowColor: Colors.black.withOpacity(0.05),
+                shape: cardShape,
+                child: InkWell(
+                  borderRadius: borderRadius,
+                  onTap: deleting
                       ? null
                       : () async {
-                        final result = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute(
-                            builder: (_) => VendorDetailScreen(vendorId: d.id),
-                          ),
-                        );
-                        if (!mounted) return;
-                        if (result == true) {
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            const SnackBar(content: Text('Vendor deleted')),
+                          final result = await Navigator.of(context).push<bool>(
+                            MaterialPageRoute(
+                              builder: (_) => VendorDetailScreen(vendorId: d.id),
+                            ),
                           );
-                        }
-                      },
-              title: Text(m['name'] ?? ''),
-              subtitle: Text(
-                '${m['businessName'] ?? ''}\n${m['email'] ?? ''} - ${m['phone'] ?? ''}',
-              ),
-              isThreeLine: true,
-              trailing: Wrap(
-                spacing: 8,
-                children: [
-                  if (widget.pending)
-                    ElevatedButton(
-                      onPressed:
-                          () => d.reference.update({
-                            'approved': true,
-                            'disabled': false,
-                          }),
-                      child: const Text('Approve'),
+                          if (!mounted) return;
+                          if (result == true) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(content: Text('Vendor deleted')),
+                            );
+                          }
+                        },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    m['name'] ?? '',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    m['businessName'] ?? '',
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                              color: Colors.black54,
+                                            ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  m['email'] ?? '',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  m['phone'] ?? '',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            if (widget.pending)
+                              _FilledActionButton(
+                                label: 'Approve',
+                                icon: Icons.check_circle_outline,
+                                color: primaryColor,
+                                onPressed: deleting
+                                    ? null
+                                    : () => d.reference.update({
+                                          'approved': true,
+                                          'disabled': false,
+                                        }),
+                              ),
+                            _FilledActionButton(
+                              label: 'Disable',
+                              icon: Icons.block_outlined,
+                              color: primaryColor,
+                              onPressed: deleting
+                                  ? null
+                                  : () => d.reference.update({
+                                        'disabled': true,
+                                        'approved': false,
+                                      }),
+                            ),
+                            _FilledActionButton(
+                              label: 'Delete',
+                              icon: Icons.delete_outline,
+                              color: primaryColor,
+                              onPressed: deleting ? null : () => _handleDelete(d),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  TextButton(
-                    onPressed:
-                        deleting
-                            ? null
-                            : () => d.reference.update({
-                              'disabled': true,
-                              'approved': false,
-                            }),
-                    child: const Text('Disable'),
                   ),
-                  TextButton(
-                    onPressed: deleting ? null : () => _handleDelete(d),
-                    child: const Text('Delete'),
-                  ),
-                ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+}
+
+class _FilledActionButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final Color color;
+  final VoidCallback? onPressed;
+  const _FilledActionButton({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = ElevatedButton.styleFrom(
+      backgroundColor: color,
+      foregroundColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: onPressed == null ? 0 : 1,
+    );
+
+    if (icon == null) {
+      return ElevatedButton(
+        onPressed: onPressed,
+        style: style,
+        child: Text(label),
+      );
+    }
+
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      style: style,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
     );
   }
 }
