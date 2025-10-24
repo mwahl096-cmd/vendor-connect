@@ -19,9 +19,19 @@ class NotificationService extends ChangeNotifier {
   bool _adminSubscribed = false;
   StreamSubscription<String>? _tokenRefreshSub;
   String? _currentToken;
+  bool get _skipIosNotifications =>
+      AppConfig.disableIosPush &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   Future<void> init() async {
     if (_initialized) return;
+
+    if (_skipIosNotifications) {
+      _initialized = true;
+      notifyListeners();
+      return;
+    }
 
     // Skip local notification channel wiring on iOS temporarily.
     if (!kIsWeb && defaultTargetPlatform != TargetPlatform.iOS) {

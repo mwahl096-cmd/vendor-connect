@@ -14,5 +14,8 @@ class AppConfig {
 
   // Notification topic for new articles
   static const String articlesTopic = 'articles';
-}
 
+  /// Temporary escape hatch: skip APNs/FCM registration on iOS builds.
+  /// Set to `false` once push notifications are configured for production.
+  static const bool disableIosPush = true;
+}
