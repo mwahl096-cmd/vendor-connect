@@ -44,7 +44,6 @@ dependencies:
   provider: ^6.1.2
   flutter_local_notifications: ^16.1.0
   badges: ^3.1.2
-  device_preview: ^1.2.0
 
 dev_dependencies:
   flutter_test:
