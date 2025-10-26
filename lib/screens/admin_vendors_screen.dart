@@ -63,6 +63,64 @@ class _VendorListState extends State<_VendorList> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>>? _cachedDocs;
   final Set<String> _deletingIds = <String>{};
   final VendorAdminService _adminService = VendorAdminService();
+  final Set<String> _inFlightIds = <String>{};
+
+  bool _isBusy(String vendorId) =>
+      _deletingIds.contains(vendorId) || _inFlightIds.contains(vendorId);
+
+  void _removeFromCache(String vendorId) {
+    if (_cachedDocs == null) return;
+    _cachedDocs =
+        _cachedDocs!.where((doc) => doc.id != vendorId).toList(growable: false);
+  }
+
+  Future<void> _updateVendorFields({
+    required QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    required Map<String, dynamic> updates,
+    bool removeFromCurrentList = false,
+    String? successMessage,
+  }) async {
+    final vendorId = doc.id;
+    if (_inFlightIds.contains(vendorId)) return;
+
+    setState(() {
+      _inFlightIds.add(vendorId);
+    });
+
+    try {
+      await doc.reference.update(updates);
+      if (!mounted) return;
+      setState(() {
+        if (removeFromCurrentList) {
+          _removeFromCache(vendorId);
+        }
+        _inFlightIds.remove(vendorId);
+      });
+      if (successMessage != null && successMessage.isNotEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(successMessage)),
+        );
+      }
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _inFlightIds.remove(vendorId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update vendor: ${e.message ?? e.code}'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _inFlightIds.remove(vendorId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update vendor')),
+      );
+    }
+  }
 
   Future<void> _handleDelete(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
@@ -133,10 +191,9 @@ class _VendorListState extends State<_VendorList> {
       } else {
         setState(() {
           if (deleted) {
-            if (_cachedDocs != null) {
-              _cachedDocs =
-                  _cachedDocs!.where((d) => d.id != vendorId).toList();
-            }
+            _removeFromCache(vendorId);
+            _deletingIds.remove(vendorId);
+            _inFlightIds.remove(vendorId);
           } else {
             _deletingIds.remove(vendorId);
           }
@@ -198,7 +255,7 @@ class _VendorListState extends State<_VendorList> {
         }
 
         final visibleDocs = docs
-            .where((doc) => !_deletingIds.contains(doc.id))
+            .where((doc) => !_deletingIds.contains(doc.id) && !_inFlightIds.contains(doc.id))
             .toList(growable: false);
 
         if (visibleDocs.isEmpty) {
@@ -231,7 +288,7 @@ class _VendorListState extends State<_VendorList> {
                 shape: cardShape,
                 child: InkWell(
                   borderRadius: borderRadius,
-                  onTap: deleting
+                  onTap: deleting || busy
                       ? null
                       : () async {
                           final result = await Navigator.of(context).push<bool>(
@@ -303,29 +360,43 @@ class _VendorListState extends State<_VendorList> {
                                 label: 'Approve',
                                 icon: Icons.check_circle_outline,
                                 color: primaryColor,
-                                onPressed: deleting
+                                busy: busy,
+                                onPressed: busy
                                     ? null
-                                    : () => d.reference.update({
-                                          'approved': true,
-                                          'disabled': false,
-                                        }),
+                                    : () => _updateVendorFields(
+                                          doc: d,
+                                          updates: {
+                                            'approved': true,
+                                            'disabled': false,
+                                          },
+                                          removeFromCurrentList: true,
+                                          successMessage: 'Vendor approved',
+                                        ),
                               ),
                             _FilledActionButton(
                               label: 'Disable',
                               icon: Icons.block_outlined,
                               color: primaryColor,
-                              onPressed: deleting
+                              busy: busy,
+                              onPressed: busy
                                   ? null
-                                  : () => d.reference.update({
-                                        'disabled': true,
-                                        'approved': false,
-                                      }),
+                                  : () => _updateVendorFields(
+                                        doc: d,
+                                        updates: {
+                                          'disabled': true,
+                                          'approved': false,
+                                        },
+                                        removeFromCurrentList: !widget.pending,
+                                        successMessage: 'Vendor disabled',
+                                      ),
                             ),
                             _FilledActionButton(
                               label: 'Delete',
                               icon: Icons.delete_outline,
-                              color: primaryColor,
-                              onPressed: deleting ? null : () => _handleDelete(d),
+                              color: Colors.redAccent,
+                              busy: busy,
+                              onPressed:
+                                  busy ? null : () => _handleDelete(d),
                             ),
                           ],
                         ),
@@ -347,11 +418,13 @@ class _FilledActionButton extends StatelessWidget {
   final IconData? icon;
   final Color color;
   final VoidCallback? onPressed;
+  final bool busy;
   const _FilledActionButton({
     required this.label,
     required this.color,
     required this.onPressed,
     this.icon,
+    this.busy = false,
   });
 
   @override
@@ -362,22 +435,43 @@ class _FilledActionButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       textStyle: const TextStyle(fontWeight: FontWeight.w600),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      elevation: onPressed == null ? 0 : 1,
+      elevation: busy ? 0 : (onPressed == null ? 0 : 1),
     );
 
-    if (icon == null) {
-      return ElevatedButton(
-        onPressed: onPressed,
-        style: style,
-        child: Text(label),
+    Widget buildChild() {
+      if (busy) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(label),
+          ],
+        );
+      }
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+          ],
+          Text(label),
+        ],
       );
     }
 
-    return ElevatedButton.icon(
-      onPressed: onPressed,
+    return ElevatedButton(
+      onPressed: busy ? null : onPressed,
       style: style,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
+      child: buildChild(),
     );
   }
 }
@@ -522,3 +616,7 @@ class VendorDetailScreen extends StatelessWidget {
     );
   }
 }
+
+
+
+
