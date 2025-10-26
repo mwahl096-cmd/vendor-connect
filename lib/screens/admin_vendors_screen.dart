@@ -272,6 +272,7 @@ class _VendorListState extends State<_VendorList> {
           itemBuilder: (context, i) {
             final d = visibleDocs[i];
             final m = d.data();
+            final busy = _isBusy(d.id);
             final deleting = _deletingIds.contains(d.id);
             final primaryColor = const Color(0xFF2BBFD4);
             final borderRadius = BorderRadius.circular(16);
@@ -616,6 +617,7 @@ class VendorDetailScreen extends StatelessWidget {
     );
   }
 }
+
 
 
 
