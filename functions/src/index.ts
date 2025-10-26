@@ -99,7 +99,19 @@ export const wpWebhook = onRequest(async (req, res) => {
   try {
     const body = req.body || {};
     // Try to locate the WordPress post ID from various free-plugin payload shapes
-    const wpIdRaw = body.id ?? body.post_id ?? body.post?.ID ?? body.post?.id ?? body?.data?.post?.ID;
+    const wpIdRaw =
+      body.id ??
+      body.ID ??
+      body.post_id ??
+      body.postId ??
+      body.post_ID ??
+      body.post?.ID ??
+      body.post?.id ??
+      body?.data?.post_id ??
+      body?.data?.post?.ID ??
+      body?.data?.post?.id ??
+      body?.data?.ID ??
+      body?.data?.id;
     const wpId = Number(wpIdRaw || 0);
     if (!wpId || Number.isNaN(wpId)) {
       res.status(400).json({ ok: false, error: "Missing post id" });
@@ -195,8 +207,14 @@ export const wpWebhook = onRequest(async (req, res) => {
       String(body?.postStatus ?? "").toLowerCase(),
       String(body?.status ?? "").toLowerCase(),
       String(body?.post?.post_status ?? "").toLowerCase(),
+      String(body?.post?.status ?? "").toLowerCase(),
+      String(body?.new_status ?? "").toLowerCase(),
+      String(body?.old_status ?? "").toLowerCase(),
       String(body?.data?.status ?? "").toLowerCase(),
       String(body?.data?.post_status ?? "").toLowerCase(),
+      String(body?.data?.new_status ?? "").toLowerCase(),
+      String(body?.data?.old_status ?? "").toLowerCase(),
+      String(body?.data?.previous_status ?? "").toLowerCase(),
       String(source?.status ?? "").toLowerCase(),
       String(statusRaw ?? "").toLowerCase(),
     ];
@@ -396,3 +414,4 @@ export const adminSetVendorFlags = onCall(async (req) => {
   await admin.firestore().doc(`users/${uid}`).set(updates, { merge: true });
   return { ok: true };
 });
+
