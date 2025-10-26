@@ -175,13 +175,25 @@ class _SplashScreenState extends State<SplashScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 120,
-                height: 120,
+                width: 160,
+                height: 160,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(24),
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(36),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.hub, size: 72, color: Colors.white),
+                alignment: Alignment.center,
+                child: Image.asset(
+                  'assets/images/vendor_connect_logo.png',
+                  height: 118,
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(height: 24),
               Text('Vendor Connect', style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),

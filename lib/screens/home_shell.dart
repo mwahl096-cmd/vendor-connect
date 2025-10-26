@@ -174,19 +174,21 @@ class _AppDrawer extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('About Us'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const InfoPage(
-                    title: 'About Us',
-                    paragraphs: [
-                      'Vendor Connect helps market administrators keep vendors aligned with important updates and announcements.',
-                      'We combine real-time notifications, searchable articles, and easy communication tools to keep your vendor community in sync.'
-                    ],
-                  ),
-                ));
-              },
-            ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const InfoPage(
+                      title: 'About Us',
+                      heroAsset: 'assets/images/vendor_connect_logo.png',
+                      paragraphs: [
+                        'About Vendor Connect\n\nVendor Connect is our direct line to the 180+ makers, artists, and small businesses that power our marketplace. Built for iPhone and Android, the app brings all vendor communications into one clear, reliable channel—no lost emails, no missed posts.',
+                        'When we publish a new article or share time-sensitive information, you’ll get notified immediately in the app. You can read, comment, and join the conversation right away. It’s an easy, two-way connection designed to answer questions faster, reduce confusion, and make sure everyone has what they need to succeed.',
+                        'Behind the scenes, Vendor Connect helps our team support you better—organizing updates, tracking engagement, and ensuring important announcements never slip through the cracks. We’re committed to building a transparent, responsive, and supportive vendor experience, and this app is a big step toward that promise.'
+                      ],
+                    ),
+                  ));
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.design_services_outlined),
               title: const Text('Services'),
