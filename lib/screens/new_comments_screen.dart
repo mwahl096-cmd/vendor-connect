@@ -49,12 +49,16 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
           final docs = snapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
           final isFromServer = snapshot == null ? false : !snapshot.metadata.isFromCache;
           final reference = DateTime.now();
-          final recentDocs = docs
-              .where(
-                (doc) =>
-                    isWithinWindow(doc.data()['createdAt'], _window, reference: reference),
-              )
-              .toList();
+          bool _isRecentDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+            final createdAt = doc.data()['createdAt'];
+            if (createdAt == null) {
+              // Server timestamp not set yet; treat as recent so the item stays visible.
+              return true;
+            }
+            return isWithinWindow(createdAt, _window, reference: reference);
+          }
+
+          final recentDocs = docs.where(_isRecentDoc).toList();
 
           if (recentDocs.isNotEmpty) {
             _cachedRecentDocs =
