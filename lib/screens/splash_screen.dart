@@ -44,6 +44,15 @@ class _SplashScreenState extends State<SplashScreen> {
               .doc(u.uid)
               .get()
               .timeout(const Duration(seconds: 2));
+          if (!snap.exists) {
+            await FirebaseAuth.instance.signOut();
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Account not found. Please contact support.')),
+            );
+            _go(AuthScreen.route);
+            return;
+          }
           final data = (snap.data() as Map<String, dynamic>?) ?? {};
           final roleLower = (data['role'] ?? 'vendor').toString().toLowerCase().trim();
           final approvedRaw = data['approved'];
@@ -98,6 +107,15 @@ class _SplashScreenState extends State<SplashScreen> {
             .doc(u.uid)
             .get()
             .timeout(const Duration(seconds: 3));
+        if (!snap.exists) {
+          await FirebaseAuth.instance.signOut();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account not found. Please contact support.')),
+          );
+          _go(AuthScreen.route);
+          return;
+        }
         data = (snap.data() as Map<String, dynamic>?) ?? {};
       } catch (_) {}
 

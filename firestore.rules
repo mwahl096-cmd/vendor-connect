@@ -12,6 +12,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && uid == request.auth.uid;
       allow update: if isSignedIn() && (uid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
     }
 
     match /articles/{articleId} {
