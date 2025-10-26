@@ -13,8 +13,6 @@ class NewCommentsScreen extends StatefulWidget {
 class _NewCommentsScreenState extends State<NewCommentsScreen> {
   static const Duration _window = Duration(hours: 24);
   late final Query<Map<String, dynamic>> _query;
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedRecentDocs = const [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedAllDocs = const [];
 
   @override
   void initState() {
@@ -45,49 +43,31 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final snapshot = snap.data;
-          final docs = snapshot?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-          final isFromServer = snapshot == null ? false : !snapshot.metadata.isFromCache;
+          final docs = snap.data?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
           final reference = DateTime.now();
-          bool _isRecentDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+
+          bool isRecent(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
             final createdAt = doc.data()['createdAt'];
             if (createdAt == null) {
-              // Server timestamp not set yet; treat as recent so the item stays visible.
+              // Pending server timestamp, keep it visible.
               return true;
             }
             return isWithinWindow(createdAt, _window, reference: reference);
           }
 
-          final recentDocs = docs.where(_isRecentDoc).toList();
+          final recentDocs = docs.where(isRecent).toList();
 
           if (recentDocs.isNotEmpty) {
-            _cachedRecentDocs =
-                List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(recentDocs);
-          } else if (isFromServer) {
-            _cachedRecentDocs = const [];
+            return _buildCommentsList(recentDocs);
           }
 
           if (docs.isNotEmpty) {
-            _cachedAllDocs =
-                List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(docs);
-          } else if (isFromServer) {
-            _cachedAllDocs = const [];
-          }
-
-          if (_cachedRecentDocs.isNotEmpty) {
-            return _buildCommentsList(_cachedRecentDocs);
-          }
-
-          if (_cachedAllDocs.isNotEmpty) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceVariant
-                      .withOpacity(0.35),
+                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.35),
                   child: Text(
                     'No comments in the last 24 hours. Showing latest comments instead.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -96,7 +76,7 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
                         ),
                   ),
                 ),
-                Expanded(child: _buildCommentsList(_cachedAllDocs)),
+                Expanded(child: _buildCommentsList(docs)),
               ],
             );
           }
@@ -137,3 +117,4 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
     );
   }
 }
+
