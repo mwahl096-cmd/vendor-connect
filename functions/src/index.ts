@@ -177,6 +177,36 @@ export const wpWebhook = onRequest(async (req, res) => {
       body?.post_status ??
       body?.postStatus ??
       "";
+
+    const actionRaw = String(
+      body?.action ??
+        body?.event ??
+        body?.hook ??
+        body?.trigger ??
+        body?.data?.action ??
+        body?.data?.event ??
+        ""
+    )
+      .toLowerCase()
+      .trim();
+
+    const explicitTrashStatuses = [
+      String(body?.post_status ?? "").toLowerCase(),
+      String(body?.postStatus ?? "").toLowerCase(),
+      String(body?.status ?? "").toLowerCase(),
+      String(body?.post?.post_status ?? "").toLowerCase(),
+      String(body?.data?.status ?? "").toLowerCase(),
+      String(body?.data?.post_status ?? "").toLowerCase(),
+      String(source?.status ?? "").toLowerCase(),
+      String(statusRaw ?? "").toLowerCase(),
+    ];
+
+    const flaggedAsDelete =
+      Boolean(body?.deleted ?? body?.is_deleted ?? body?.trashed) ||
+      explicitTrashStatuses.some((s) => ["trash", "trashed", "deleted"].includes(s)) ||
+      actionRaw.includes("trash") ||
+      actionRaw.includes("delete") ||
+      actionRaw.includes("remove");
     // Upsert by WordPress ID to avoid duplicates on update
     const ref = admin.firestore().collection("articles").doc(String(wpId));
     const previousSnap = await ref.get();
@@ -188,11 +218,18 @@ export const wpWebhook = onRequest(async (req, res) => {
     let statusNormalized = String(statusRaw || "")
       .toLowerCase()
       .trim();
-    if (!statusNormalized && previousStatus) {
+    if (flaggedAsDelete) {
+      statusNormalized = "trash";
+    }
+    if (!statusNormalized && previousStatus && !flaggedAsDelete) {
       statusNormalized = previousStatus;
     }
     if (!statusNormalized) {
-      statusNormalized = "unknown";
+      statusNormalized = flaggedAsDelete ? "trash" : "unknown";
+    }
+
+    if (flaggedAsDelete && statusNormalized === "publish") {
+      statusNormalized = "trash";
     }
 
     if (statusNormalized !== "publish") {
