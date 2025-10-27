@@ -160,46 +160,26 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
-      body: Container(
+      body: DecoratedBox(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF2BBFD4), Color(0xFF6EA7E5)],
+          gradient: RadialGradient(
+            center: Alignment(0, -0.1),
+            radius: 1.15,
+            colors: [
+              Color(0xFFFFFFFF),
+              Color(0xFFE8EEF4),
+            ],
           ),
         ),
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(36),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Image.asset(
-                  'assets/images/vendor_connect_logo.png',
-                  height: 118,
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text('Vendor Connect', style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Text('Your Market Communication Hub', style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70)),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Image.asset(
+              'assets/images/vendor_connect_logo.png',
+              width: 220,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       ),
