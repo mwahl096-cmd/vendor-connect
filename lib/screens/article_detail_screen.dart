@@ -13,6 +13,47 @@ class ArticleDetailScreen extends StatelessWidget {
   final String articleId;
   const ArticleDetailScreen({super.key, required this.articleId});
 
+  Future<void> _confirmDeleteComment(
+    BuildContext context,
+    DocumentReference<Map<String, dynamic>> articleRef,
+    ArticleComment comment,
+  ) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete comment?'),
+        content: Text('This will remove "${comment.text}" permanently.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await articleRef
+          .collection(AppConfig.commentsSubcollection)
+          .doc(comment.id)
+          .delete();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Comment deleted')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to delete comment, try again.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -309,6 +350,20 @@ class ArticleDetailScreen extends StatelessWidget {
                                       padding: const EdgeInsets.only(top: 4),
                                       child: Text(c.text),
                                     ),
+                                    trailing: isAdmin
+                                        ? IconButton(
+                                            tooltip: 'Delete comment',
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.redAccent,
+                                            ),
+                                            onPressed: () => _confirmDeleteComment(
+                                              context,
+                                              articleRef,
+                                              c,
+                                            ),
+                                          )
+                                        : null,
                                   ),
                                 ),
                               ),
