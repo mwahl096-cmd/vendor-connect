@@ -210,35 +210,33 @@ class _VendorListState extends State<_VendorList> {
       builder: (context, snap) {
         List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
 
-        if (snap.hasData && snap.data != null) {
-          final snapshot = snap.data!;
-          final filtered =
-              snapshot.docs.where((d) {
-                final data = d.data();
-                final approved = data['approved'] == true;
-                final disabled = data['disabled'] == true;
-                if (widget.pending) {
-                  return !approved || disabled;
-                } else {
-                  return approved && !disabled;
-                }
-              }).toList();
+        final waiting = snap.connectionState == ConnectionState.waiting;
+        final snapshot = snap.data;
 
-          if (filtered.isEmpty &&
-              snapshot.metadata.isFromCache &&
-              _cachedDocs != null) {
+        if (snapshot != null) {
+          final filtered = snapshot.docs.where((d) {
+            final data = d.data();
+            final approved = data['approved'] == true;
+            final disabled = data['disabled'] == true;
+            if (widget.pending) {
+              return !approved || disabled;
+            } else {
+              return approved && !disabled;
+            }
+          }).toList();
+
+          if (filtered.isEmpty && snapshot.metadata.isFromCache && _cachedDocs != null) {
             docs = _cachedDocs!;
           } else {
             docs = filtered;
-            _cachedDocs =
-                List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
-                  filtered,
-                );
+            _cachedDocs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(filtered);
           }
         } else if (_cachedDocs != null) {
           docs = _cachedDocs!;
-        } else {
+        } else if (waiting) {
           return const Center(child: CircularProgressIndicator());
+        } else {
+          docs = const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
         }
 
         if (_deletingIds.isNotEmpty) {
