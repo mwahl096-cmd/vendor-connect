@@ -28,6 +28,9 @@ class PendingApprovalScreen extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: () async {
                 await context.read<NotificationService>().subscribeAdmins(false);
+                await context
+                    .read<NotificationService>()
+                    .ensureArticleTopic(subscribe: false);
                 await FirebaseAuth.instance.signOut();
                 if (context.mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(AuthScreen.route, (route) => false);
@@ -42,5 +45,6 @@ class PendingApprovalScreen extends StatelessWidget {
     );
   }
 }
+
 
 

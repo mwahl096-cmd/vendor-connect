@@ -17,6 +17,7 @@ class NotificationService extends ChangeNotifier {
   bool _initialized = false;
   bool get initialized => _initialized;
   bool _adminSubscribed = false;
+  bool _articleSubscribed = false;
   StreamSubscription<String>? _tokenRefreshSub;
   StreamSubscription<User?>? _authSub;
   String? _currentToken;
@@ -45,9 +46,12 @@ class NotificationService extends ChangeNotifier {
     try {
       await _fcm.requestPermission();
     } catch (_) {}
-    await _ensureTopicSubscription();
     final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
+    await ensureArticleTopic(
+      subscribe: currentUser != null,
+      revokeTokenWhenDisabled: currentUser == null,
+    );
+    if (currentUser == null && _adminSubscribed) {
       await subscribeAdmins(false);
     }
 
@@ -58,6 +62,10 @@ class NotificationService extends ChangeNotifier {
       if (user == null && _adminSubscribed) {
         await subscribeAdmins(false);
       }
+      await ensureArticleTopic(
+        subscribe: user != null,
+        revokeTokenWhenDisabled: user == null,
+      );
     });
     _initialized = true;
     notifyListeners();
@@ -119,6 +127,31 @@ class NotificationService extends ChangeNotifier {
     );
   }
 
+  Future<void> ensureArticleTopic({
+    bool? subscribe,
+    bool revokeTokenWhenDisabled = true,
+  }) async {
+    final shouldSubscribe =
+        subscribe ?? FirebaseAuth.instance.currentUser != null;
+    final tokenOverride =
+        shouldSubscribe ? null : (_currentToken?.isNotEmpty == true ? _currentToken : null);
+
+    await _ensureArticleSubscription(
+      subscribe: shouldSubscribe,
+      tokenOverride: tokenOverride,
+    );
+
+    if (!shouldSubscribe && revokeTokenWhenDisabled) {
+      final token = _currentToken;
+      if (token != null) {
+        try {
+          await _fcm.deleteToken();
+        } catch (_) {}
+        _currentToken = null;
+      }
+    }
+  }
+
   Future<void> setBadgeCount(int count) async {
     try {
       await badge.setBadgeCount(count);
@@ -137,17 +170,13 @@ class NotificationService extends ChangeNotifier {
     _adminSubscribed = false;
   }
 
-  Future<void> _ensureTopicSubscription() async {
-    try {
-      final token = await _fcm.getToken();
-      if (token == null) return;
-      await _subscribeTokenToArticles(token);
-    } catch (_) {}
-  }
-
   Future<void> _handleTokenRefresh(String token) async {
     final previous = _currentToken;
-    await _subscribeTokenToArticles(token);
+    _currentToken = token;
+    await _ensureArticleSubscription(
+      subscribe: FirebaseAuth.instance.currentUser != null,
+      tokenOverride: token,
+    );
     if (previous != null && previous != token) {
       try {
         await FirebaseFirestore.instance
@@ -161,18 +190,37 @@ class NotificationService extends ChangeNotifier {
     }
   }
 
-  Future<void> _subscribeTokenToArticles(String token) async {
+  Future<void> _ensureArticleSubscription({
+    required bool subscribe,
+    String? tokenOverride,
+  }) async {
+    final token = tokenOverride ?? await _fcm.getToken();
+    if (token == null) return;
+
     _currentToken = token;
     try {
-      await _fcm.subscribeToTopic(AppConfig.articlesTopic);
+      if (subscribe) {
+        if (!_articleSubscribed) {
+          await _fcm.subscribeToTopic(AppConfig.articlesTopic);
+          _articleSubscribed = true;
+        }
+      } else {
+        if (_articleSubscribed) {
+          await _fcm.unsubscribeFromTopic(AppConfig.articlesTopic);
+          _articleSubscribed = false;
+        } else {
+          await _fcm.unsubscribeFromTopic(AppConfig.articlesTopic);
+        }
+      }
     } catch (_) {}
+
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       await FirebaseFirestore.instance.collection('fcmTokens').doc(token).set({
         'uid': uid,
-        'topics': {AppConfig.articlesTopic: true},
+        'topics': {AppConfig.articlesTopic: subscribe},
         'platform': describeEnum(defaultTargetPlatform),
-        'active': true,
+        'active': subscribe,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (_) {}
@@ -185,6 +233,7 @@ class NotificationService extends ChangeNotifier {
     super.dispose();
   }
 }
+
 
 
 

@@ -337,6 +337,9 @@ In-app: Profile -> Help & Support'''
               title: const Text('Sign out'),
               onTap: () async {
                 await context.read<NotificationService>().subscribeAdmins(false);
+                await context
+                    .read<NotificationService>()
+                    .ensureArticleTopic(subscribe: false);
                 await context.read<AuthService>().signOut();
                 if (context.mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(AuthScreen.route, (route) => false);
