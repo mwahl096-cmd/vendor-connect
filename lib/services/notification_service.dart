@@ -18,6 +18,7 @@ class NotificationService extends ChangeNotifier {
   bool get initialized => _initialized;
   bool _adminSubscribed = false;
   bool _articleSubscribed = false;
+  String? _lastKnownUid;
   StreamSubscription<String>? _tokenRefreshSub;
   StreamSubscription<User?>? _authSub;
   String? _currentToken;
@@ -50,6 +51,7 @@ class NotificationService extends ChangeNotifier {
     await ensureArticleTopic(
       subscribe: currentUser != null,
       revokeTokenWhenDisabled: currentUser == null,
+      uidOverride: currentUser?.uid,
     );
     if (currentUser == null && _adminSubscribed) {
       await subscribeAdmins(false);
@@ -65,6 +67,7 @@ class NotificationService extends ChangeNotifier {
       await ensureArticleTopic(
         subscribe: user != null,
         revokeTokenWhenDisabled: user == null,
+        uidOverride: user?.uid ?? _lastKnownUid,
       );
     });
     _initialized = true;
@@ -130,15 +133,20 @@ class NotificationService extends ChangeNotifier {
   Future<void> ensureArticleTopic({
     bool? subscribe,
     bool revokeTokenWhenDisabled = true,
+    String? uidOverride,
   }) async {
+    if (_skipIosNotifications) return;
     final shouldSubscribe =
         subscribe ?? FirebaseAuth.instance.currentUser != null;
     final tokenOverride =
-        shouldSubscribe ? null : (_currentToken?.isNotEmpty == true ? _currentToken : null);
+        shouldSubscribe
+            ? null
+            : (_currentToken?.isNotEmpty == true ? _currentToken : null);
 
     await _ensureArticleSubscription(
       subscribe: shouldSubscribe,
       tokenOverride: tokenOverride,
+      uidOverride: uidOverride,
     );
 
     if (!shouldSubscribe && revokeTokenWhenDisabled) {
@@ -176,6 +184,7 @@ class NotificationService extends ChangeNotifier {
     await _ensureArticleSubscription(
       subscribe: FirebaseAuth.instance.currentUser != null,
       tokenOverride: token,
+      uidOverride: FirebaseAuth.instance.currentUser?.uid ?? _lastKnownUid,
     );
     if (previous != null && previous != token) {
       try {
@@ -193,7 +202,9 @@ class NotificationService extends ChangeNotifier {
   Future<void> _ensureArticleSubscription({
     required bool subscribe,
     String? tokenOverride,
+    String? uidOverride,
   }) async {
+    if (_skipIosNotifications) return;
     final token = tokenOverride ?? await _fcm.getToken();
     if (token == null) return;
 
@@ -215,7 +226,11 @@ class NotificationService extends ChangeNotifier {
     } catch (_) {}
 
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final uid =
+          uidOverride ??
+          FirebaseAuth.instance.currentUser?.uid ??
+          _lastKnownUid;
+      _lastKnownUid = uid;
       await FirebaseFirestore.instance.collection('fcmTokens').doc(token).set({
         'uid': uid,
         'topics': {AppConfig.articlesTopic: subscribe},
@@ -226,6 +241,22 @@ class NotificationService extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> cleanupAfterSignOut({String? uidOverride}) async {
+    final tasks = <Future<void>>[];
+    if (!_skipIosNotifications) {
+      final uid = uidOverride ?? _lastKnownUid;
+      tasks.add(ensureArticleTopic(subscribe: false, uidOverride: uid));
+    }
+    if (_adminSubscribed) {
+      tasks.add(subscribeAdmins(false));
+    }
+    for (final task in tasks) {
+      try {
+        await task;
+      } catch (_) {}
+    }
+  }
+
   @override
   void dispose() {
     _tokenRefreshSub?.cancel();
@@ -233,9 +264,3 @@ class NotificationService extends ChangeNotifier {
     super.dispose();
   }
 }
-
-
-
-
-
-

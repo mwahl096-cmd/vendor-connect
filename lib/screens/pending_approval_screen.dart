@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'auth_screen.dart';
-import 'package:flutter/material.dart';
 
 class PendingApprovalScreen extends StatelessWidget {
   static const route = '/pending';
@@ -27,24 +31,47 @@ class PendingApprovalScreen extends StatelessWidget {
             const Spacer(),
             ElevatedButton.icon(
               onPressed: () async {
-                await context.read<NotificationService>().subscribeAdmins(false);
-                await context
-                    .read<NotificationService>()
-                    .ensureArticleTopic(subscribe: false);
-                await FirebaseAuth.instance.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil(AuthScreen.route, (route) => false);
+                final notificationService = context.read<NotificationService>();
+                final authService = context.read<AuthService>();
+                final messenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
+                final previousUid = FirebaseAuth.instance.currentUser?.uid;
+                try {
+                  await authService.signOut();
+                } on FirebaseAuthException catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        e.message ?? 'Unable to sign out. Please retry.',
+                      ),
+                    ),
+                  );
+                  return;
+                } catch (_) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Unable to sign out. Please retry.'),
+                    ),
+                  );
+                  return;
                 }
+                unawaited(
+                  notificationService.cleanupAfterSignOut(
+                    uidOverride: previousUid,
+                  ),
+                );
+                if (!context.mounted) return;
+                navigator.pushNamedAndRemoveUntil(
+                  AuthScreen.route,
+                  (route) => false,
+                );
               },
               icon: const Icon(Icons.logout),
               label: const Text('Sign out'),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 }
-
-
-

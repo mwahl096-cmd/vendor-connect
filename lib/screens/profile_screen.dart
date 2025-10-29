@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -180,12 +182,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: () async {
                   final notificationService =
                       context.read<NotificationService>();
+                  final authService = context.read<AuthService>();
                   final navigator = Navigator.of(context);
-                  await notificationService.subscribeAdmins(false);
-                  await notificationService.ensureArticleTopic(
-                    subscribe: false,
+                  final messenger = ScaffoldMessenger.of(context);
+                  final previousUid = FirebaseAuth.instance.currentUser?.uid;
+                  try {
+                    await authService.signOut();
+                  } on FirebaseAuthException catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          e.message ?? 'Unable to sign out. Please retry.',
+                        ),
+                      ),
+                    );
+                    return;
+                  } catch (_) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('Unable to sign out. Please retry.'),
+                      ),
+                    );
+                    return;
+                  }
+                  unawaited(
+                    notificationService.cleanupAfterSignOut(
+                      uidOverride: previousUid,
+                    ),
                   );
-                  await FirebaseAuth.instance.signOut();
                   if (!mounted) return;
                   navigator.pushNamedAndRemoveUntil(
                     AuthScreen.route,
