@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../config.dart';
+import '../services/notification_service.dart';
 import 'auth_screen.dart';
 import 'admin_vendors_screen.dart';
 import 'admin_dashboard.dart';
@@ -73,6 +75,9 @@ class ProfileScreen extends StatelessWidget {
               ],
               ElevatedButton.icon(
                 onPressed: () async {
+                  await context
+                      .read<NotificationService>()
+                      .subscribeAdmins(false);
                   await FirebaseAuth.instance.signOut();
                   if (context.mounted) {
                     Navigator.of(context).pushNamedAndRemoveUntil(AuthScreen.route, (route) => false);

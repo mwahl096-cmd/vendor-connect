@@ -336,6 +336,7 @@ In-app: Profile -> Help & Support'''
               leading: const Icon(Icons.logout),
               title: const Text('Sign out'),
               onTap: () async {
+                await context.read<NotificationService>().subscribeAdmins(false);
                 await context.read<AuthService>().signOut();
                 if (context.mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(AuthScreen.route, (route) => false);
@@ -348,4 +349,5 @@ In-app: Profile -> Help & Support'''
     );
   }
 }
+
 

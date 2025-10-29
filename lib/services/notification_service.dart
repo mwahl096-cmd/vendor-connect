@@ -18,6 +18,7 @@ class NotificationService extends ChangeNotifier {
   bool get initialized => _initialized;
   bool _adminSubscribed = false;
   StreamSubscription<String>? _tokenRefreshSub;
+  StreamSubscription<User?>? _authSub;
   String? _currentToken;
   bool get _skipIosNotifications =>
       AppConfig.disableIosPush &&
@@ -45,9 +46,19 @@ class NotificationService extends ChangeNotifier {
       await _fcm.requestPermission();
     } catch (_) {}
     await _ensureTopicSubscription();
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      await subscribeAdmins(false);
+    }
+
     _tokenRefreshSub ??= _fcm.onTokenRefresh.listen((token) async {
       await _handleTokenRefresh(token);
     }, onError: (_) {});
+    _authSub ??= FirebaseAuth.instance.authStateChanges().listen((user) async {
+      if (user == null && _adminSubscribed) {
+        await subscribeAdmins(false);
+      }
+    });
     _initialized = true;
     notifyListeners();
   }
@@ -115,14 +126,15 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> subscribeAdmins(bool subscribe) async {
-    if (subscribe && !_adminSubscribed) {
-      await _fcm.subscribeToTopic('${AppConfig.articlesTopic}-admins');
+    final topic = '${AppConfig.articlesTopic}-admins';
+    if (subscribe) {
+      await _fcm.subscribeToTopic(topic);
       _adminSubscribed = true;
+      return;
     }
-    if (!subscribe && _adminSubscribed) {
-      await _fcm.unsubscribeFromTopic('${AppConfig.articlesTopic}-admins');
-      _adminSubscribed = false;
-    }
+
+    await _fcm.unsubscribeFromTopic(topic);
+    _adminSubscribed = false;
   }
 
   Future<void> _ensureTopicSubscription() async {
@@ -169,6 +181,12 @@ class NotificationService extends ChangeNotifier {
   @override
   void dispose() {
     _tokenRefreshSub?.cancel();
+    _authSub?.cancel();
     super.dispose();
   }
 }
+
+
+
+
+

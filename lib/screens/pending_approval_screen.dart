@@ -1,4 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../services/notification_service.dart';
 import 'auth_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -25,6 +27,7 @@ class PendingApprovalScreen extends StatelessWidget {
             const Spacer(),
             ElevatedButton.icon(
               onPressed: () async {
+                await context.read<NotificationService>().subscribeAdmins(false);
                 await FirebaseAuth.instance.signOut();
                 if (context.mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(AuthScreen.route, (route) => false);
@@ -39,3 +42,5 @@ class PendingApprovalScreen extends StatelessWidget {
     );
   }
 }
+
+

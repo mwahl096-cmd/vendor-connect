@@ -8,9 +8,8 @@
  */
 
 import { setGlobalOptions } from "firebase-functions/v2/options";
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
-import { onCall } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
@@ -414,4 +413,100 @@ export const adminSetVendorFlags = onCall(async (req) => {
   await admin.firestore().doc(`users/${uid}`).set(updates, { merge: true });
   return { ok: true };
 });
+
+
+
+
+
+// Callable to fully delete a vendor (Firestore + Auth)
+export const adminDeleteVendor = onCall(async (req) => {
+  const callerUid = req.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+
+  const callerDoc = await admin.firestore().doc(`users/${callerUid}`).get();
+  const callerRole = (callerDoc.get("role") as string | undefined)?.toLowerCase();
+  if (!callerDoc.exists || callerRole !== "admin") {
+    throw new HttpsError("permission-denied", "Admins only");
+  }
+
+  const rawUid = req.data?.uid;
+  const uid = typeof rawUid === "string" ? rawUid.trim() : rawUid ? String(rawUid) : "";
+  if (!uid) {
+    throw new HttpsError("invalid-argument", "uid is required");
+  }
+
+  const firestore = admin.firestore();
+  let candidateUid = uid;
+  let candidateEmail: string | undefined;
+
+  try {
+    const profileSnap = await firestore.doc(`users/${uid}`).get();
+    const data = profileSnap.data() as Record<string, any> | undefined;
+    if (data) {
+      const docAuthUid = data.authUid ?? data.authId ?? data.uid;
+      if (typeof docAuthUid === "string" && docAuthUid.trim().length > 0) {
+        candidateUid = docAuthUid.trim();
+      }
+      if (typeof data.email === "string" && data.email.trim().length > 0) {
+        candidateEmail = data.email.trim();
+      }
+    }
+  } catch (err) {
+    logger.warn("Unable to read vendor profile before delete", err as any);
+  }
+
+  try {
+    await firestore.doc(`users/${uid}`).delete();
+  } catch (err) {
+    logger.warn("Vendor profile delete failed (ignored)", err as any);
+  }
+
+  try {
+    const readsSnap = await firestore.collection("reads").where("uid", "==", uid).get();
+    if (!readsSnap.empty) {
+      const batch = firestore.batch();
+      for (const doc of readsSnap.docs) {
+        batch.delete(doc.ref);
+      }
+      await batch.commit();
+    }
+  } catch (err) {
+    logger.warn("Failed to cleanup vendor read records", err as any);
+  }
+
+  const tryDeleteAuth = async (targetUid?: string): Promise<boolean> => {
+    if (!targetUid) return false;
+    try {
+      await admin.auth().deleteUser(targetUid);
+      return true;
+    } catch (err: any) {
+      if (err.code === "auth/user-not-found") {
+        return false;
+      }
+      logger.error("Failed to delete auth user", err as any);
+      throw new HttpsError("internal", "Failed to delete authentication user");
+    }
+  };
+
+  let authDeleted = await tryDeleteAuth(candidateUid);
+
+  if (!authDeleted && candidateEmail) {
+    try {
+      const record = await admin.auth().getUserByEmail(candidateEmail);
+      await admin.auth().deleteUser(record.uid);
+      authDeleted = true;
+    } catch (err: any) {
+      if (err.code !== "auth/user-not-found") {
+        logger.error("Failed to delete auth user via email", err as any);
+        throw new HttpsError("internal", "Failed to delete authentication user");
+      }
+    }
+  }
+
+  return { ok: true, authDeleted };
+});
+
+
 

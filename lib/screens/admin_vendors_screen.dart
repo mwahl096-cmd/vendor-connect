@@ -164,10 +164,11 @@ class _VendorListState extends State<_VendorList> {
     try {
       await _adminService.deleteVendor(vendorId);
       deleted = true;
+      debugPrint('Vendor $vendorId deleted via callable');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Vendor deleted')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vendor deleted')),
+        );
       }
     } on FirebaseException catch (e) {
       if (mounted) {
