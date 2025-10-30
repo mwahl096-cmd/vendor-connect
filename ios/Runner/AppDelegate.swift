@@ -5,7 +5,7 @@ import FirebaseMessaging
 import UserNotifications
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, MessagingDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -13,10 +13,23 @@ import UserNotifications
     if FirebaseApp.app() == nil {
       FirebaseApp.configure()
     }
+    Messaging.messaging().delegate = self
+
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
+      UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+        if let error = error {
+          NSLog("Push permission request error: %@", error.localizedDescription)
+        }
+        if granted {
+          DispatchQueue.main.async {
+            application.registerForRemoteNotifications()
+          }
+        }
+      }
+    } else {
+      application.registerForRemoteNotifications()
     }
-    application.registerForRemoteNotifications()
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -35,5 +48,11 @@ import UserNotifications
   ) {
     NSLog("APNs registration failed: %@", error.localizedDescription)
     super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+  }
+
+  func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+    if let token = fcmToken {
+      NSLog("Firebase registration token: %@", token)
+    }
   }
 }
