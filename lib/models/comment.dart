@@ -20,16 +20,20 @@ class ArticleComment {
   });
 
   Map<String, dynamic> toMap() => {
-        'articleId': articleId,
-        'authorUid': authorUid,
-        'authorName': authorName,
-        'text': text,
-        'visibleTo': visibleTo,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
+    'articleId': articleId,
+    'authorUid': authorUid,
+    'authorName': authorName,
+    'text': text,
+    'visibleTo': visibleTo,
+    'createdAt': Timestamp.fromDate(createdAt.toUtc()),
+    'createdAtClient': Timestamp.fromDate(createdAt.toUtc()),
+  };
 
   static ArticleComment fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final ts =
+        (data['createdAt'] as Timestamp?) ??
+        (data['createdAtClient'] as Timestamp?);
     return ArticleComment(
       id: doc.id,
       articleId: (data['articleId'] ?? '') as String,
@@ -37,8 +41,7 @@ class ArticleComment {
       authorName: (data['authorName'] ?? '') as String,
       text: (data['text'] ?? '') as String,
       visibleTo: (data['visibleTo'] ?? 'public') as String,
-      createdAt: ((data['createdAt'] as Timestamp?)?.toDate()) ?? DateTime.now(),
+      createdAt: ts?.toDate().toLocal() ?? DateTime.now(),
     );
   }
 }
-

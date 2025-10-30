@@ -24,17 +24,21 @@ class AdminDashboardScreen extends StatelessWidget {
 
   Stream<int> _countComments24h() {
     final window = const Duration(hours: 24);
-    final since = Timestamp.fromDate(DateTime.now().subtract(window));
+    final reference = DateTime.now().toUtc();
     return FirebaseFirestore.instance
         .collectionGroup(AppConfig.commentsSubcollection)
-        .where('createdAt', isGreaterThan: since)
+        .limit(500)
         .snapshots()
         .map((snapshot) {
-      final reference = DateTime.now();
-      return snapshot.docs
-          .where((doc) => isWithinWindow(doc.data()['createdAt'], window, reference: reference))
-          .length;
-    });
+          return snapshot.docs.where((doc) {
+            final data = doc.data();
+            final rawTimestamp = data['createdAt'] ?? data['createdAtClient'];
+            if (rawTimestamp == null && doc.metadata.hasPendingWrites) {
+              return true;
+            }
+            return isWithinWindow(rawTimestamp, window, reference: reference);
+          }).length;
+        });
   }
 
   @override
@@ -45,27 +49,30 @@ class AdminDashboardScreen extends StatelessWidget {
         color: const Color(0xFF2BBFD4),
         icon: Icons.description_outlined,
         stream: _countArticles(),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ManageArticlesScreen()),
-        ),
+        onTap:
+            () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ManageArticlesScreen()),
+            ),
       ),
       _StatCard(
         title: 'Registered Vendors',
         color: const Color(0xFF6EA7E5),
         icon: Icons.group_outlined,
         stream: _countVendors(),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AdminVendorsScreen()),
-        ),
+        onTap:
+            () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AdminVendorsScreen()),
+            ),
       ),
       _StatCard(
         title: 'New Comments (24h)',
         color: const Color(0xFFFFA64D),
         icon: Icons.chat_bubble_outline,
         stream: _countComments24h(),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const NewCommentsScreen()),
-        ),
+        onTap:
+            () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NewCommentsScreen()),
+            ),
       ),
     ];
 
@@ -77,19 +84,26 @@ class AdminDashboardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Responsive grid of cards
-            LayoutBuilder(builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final crossAxisCount = width > 900 ? 3 : width > 600 ? 2 : 1;
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: 3.6,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: cards,
-              );
-            }),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final crossAxisCount =
+                    width > 900
+                        ? 3
+                        : width > 600
+                        ? 2
+                        : 1;
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: 3.6,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: cards,
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -103,7 +117,13 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final Stream<int> stream;
   final VoidCallback? onTap;
-  const _StatCard({required this.title, required this.color, required this.icon, required this.stream, this.onTap});
+  const _StatCard({
+    required this.title,
+    required this.color,
+    required this.icon,
+    required this.stream,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +131,11 @@ class _StatCard extends StatelessWidget {
       height: 100,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(colors: [color.withOpacity(0.15), Colors.white], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.15), Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         border: Border.all(color: color.withOpacity(0.25)),
       ),
       padding: const EdgeInsets.all(16),
@@ -120,7 +144,10 @@ class _StatCard extends StatelessWidget {
           Container(
             height: 48,
             width: 48,
-            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Icon(icon, color: color),
           ),
           const SizedBox(width: 12),
@@ -129,23 +156,36 @@ class _StatCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(title, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black54)),
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                ),
                 const SizedBox(height: 6),
                 StreamBuilder<int>(
                   stream: stream,
                   builder: (context, snap) {
                     final value = snap.data?.toString() ?? '—';
-                    return Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700));
+                    return Text(
+                      value,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    );
                   },
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
     if (onTap == null) return card;
-    return InkWell(borderRadius: BorderRadius.circular(16), onTap: onTap, child: card);
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: card,
+    );
   }
 }
 

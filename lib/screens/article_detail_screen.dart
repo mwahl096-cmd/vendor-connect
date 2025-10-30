@@ -20,20 +20,21 @@ class ArticleDetailScreen extends StatelessWidget {
   ) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete comment?'),
-        content: Text('This will remove "${comment.text}" permanently.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Delete comment?'),
+            content: Text('This will remove "${comment.text}" permanently.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (shouldDelete != true) return;
@@ -44,9 +45,7 @@ class ArticleDetailScreen extends StatelessWidget {
           .collection(AppConfig.commentsSubcollection)
           .doc(comment.id)
           .delete();
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Comment deleted')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Comment deleted')));
     } catch (e) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Unable to delete comment, try again.')),
@@ -350,20 +349,22 @@ class ArticleDetailScreen extends StatelessWidget {
                                       padding: const EdgeInsets.only(top: 4),
                                       child: Text(c.text),
                                     ),
-                                    trailing: isAdmin
-                                        ? IconButton(
-                                            tooltip: 'Delete comment',
-                                            icon: const Icon(
-                                              Icons.delete_outline,
-                                              color: Colors.redAccent,
-                                            ),
-                                            onPressed: () => _confirmDeleteComment(
-                                              context,
-                                              articleRef,
-                                              c,
-                                            ),
-                                          )
-                                        : null,
+                                    trailing:
+                                        isAdmin
+                                            ? IconButton(
+                                              tooltip: 'Delete comment',
+                                              icon: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.redAccent,
+                                              ),
+                                              onPressed:
+                                                  () => _confirmDeleteComment(
+                                                    context,
+                                                    articleRef,
+                                                    c,
+                                                  ),
+                                            )
+                                            : null,
                                   ),
                                 ),
                               ),
@@ -396,6 +397,12 @@ class _NewCommentBoxState extends State<_NewCommentBox> {
   bool _privateToAdmin = false;
   bool _sending = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _privateToAdmin = widget.visibility == 'private';
+  }
+
   Future<void> _send() async {
     if (_controller.text.trim().isEmpty) return;
     setState(() => _sending = true);
@@ -421,6 +428,7 @@ class _NewCommentBoxState extends State<_NewCommentBox> {
       'authorName': user.email ?? 'Vendor',
       'text': _controller.text.trim(),
       'visibleTo': _privateToAdmin ? 'private' : 'public',
+      'createdAtClient': Timestamp.fromDate(DateTime.now().toUtc()),
       'createdAt': FieldValue.serverTimestamp(),
     });
     if (mounted) {

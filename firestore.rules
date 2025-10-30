@@ -5,7 +5,9 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isAdmin() {
       return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role is string &&
+        lower(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role) == 'admin';
     }
 
     match /users/{uid} {
