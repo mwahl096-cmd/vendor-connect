@@ -83,6 +83,7 @@ class ArticleDetailScreen extends StatelessWidget {
           AppConfig.commentsSubcollection,
         );
         final bool filterForPublic = !isAdmin;
+
         if (isAdmin) {
           commentsQuery = commentsQuery.orderBy('createdAt', descending: true);
         } else {
@@ -116,6 +117,9 @@ class ArticleDetailScreen extends StatelessWidget {
               if (!isAdmin && !article.shouldDisplay) {
                 return const Center(child: Text('Article not available'));
               }
+
+              final bool hideCommentsForViewer =
+                  !isAdmin && article.commentsVisibility == 'private';
 
               if (uid != null) {
                 FirestoreService().markArticleRead(
@@ -225,153 +229,166 @@ class ArticleDetailScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _NewCommentBox(
-                      articleId: article.id,
-                      visibility: article.commentsVisibility,
-                    ),
-                    const SizedBox(height: 8),
-                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: commentsQuery.snapshots(),
-                      builder: (context, cSnap) {
-                        if (!cSnap.hasData || cSnap.data == null) {
-                          if (cSnap.hasError) {
-                            final err = cSnap.error;
-                            if (err is FirebaseException &&
-                                err.code == 'permission-denied') {
-                              return const Text(
-                                'Comments are not available for your role yet.',
+                    if (hideCommentsForViewer) ...[
+                      const Text(
+                        'Comments are visible to administrators only.',
+                      ),
+                      const SizedBox(height: 8),
+                      _NewCommentBox(articleId: article.id, isPrivate: true),
+                    ] else ...[
+                      _NewCommentBox(
+                        articleId: article.id,
+                        isPrivate: article.commentsVisibility == 'private',
+                      ),
+                      const SizedBox(height: 8),
+                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: commentsQuery.snapshots(),
+                        builder: (context, cSnap) {
+                          if (!cSnap.hasData || cSnap.data == null) {
+                            if (cSnap.hasError) {
+                              final err = cSnap.error;
+                              if (err is FirebaseException &&
+                                  err.code == 'permission-denied') {
+                                return const Text(
+                                  'Comments are not available for your role yet.',
+                                );
+                              }
+                              return const Text('Unable to load comments');
+                            }
+                            if (cSnap.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
                               );
                             }
-                            return const Text('Unable to load comments');
+                            return const SizedBox.shrink();
                           }
-                          if (cSnap.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            );
+
+                          if (cSnap.hasError) {
+                            debugPrint('Comment stream error: ${cSnap.error}');
                           }
-                          return const SizedBox.shrink();
-                        }
 
-                        if (cSnap.hasError) {
-                          debugPrint('Comment stream error: ${cSnap.error}');
-                        }
-
-                        final snapshot = cSnap.data!;
-                        final items =
-                            snapshot.docs
-                                .map((d) => ArticleComment.fromDoc(d))
-                                .toList();
-                        if (filterForPublic) {
-                          items.removeWhere((c) => c.visibleTo != 'public');
-                        }
-                        items.sort(
-                          (a, b) => b.createdAt.compareTo(a.createdAt),
-                        );
-                        if (items.isEmpty) {
-                          if (snapshot.metadata.isFromCache) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            );
+                          final snapshot = cSnap.data!;
+                          final items =
+                              snapshot.docs
+                                  .map((d) => ArticleComment.fromDoc(d))
+                                  .toList();
+                          if (filterForPublic) {
+                            items.removeWhere((c) => c.visibleTo != 'public');
                           }
-                          return const Text('No comments yet');
-                        }
-
-                        String displayName(String s) {
-                          final at = s.indexOf('@');
-                          return at > 0 ? s.substring(0, at) : s;
-                        }
-
-                        String onlyDate(DateTime d) =>
-                            d.toLocal().toString().split(' ').first;
-
-                        return Column(
-                          children: [
-                            for (final c in items)
-                              Card(
-                                elevation: 0,
-                                color: Colors.grey.shade100,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: Colors.grey.shade300),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
+                          items.sort(
+                            (a, b) => b.createdAt.compareTo(a.createdAt),
+                          );
+                          if (items.isEmpty) {
+                            if (snapshot.metadata.isFromCache) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
+                                ),
+                              );
+                            }
+                            return const Text('No comments yet');
+                          }
+
+                          String displayName(String s) {
+                            final at = s.indexOf('@');
+                            return at > 0 ? s.substring(0, at) : s;
+                          }
+
+                          String onlyDate(DateTime d) =>
+                              d.toLocal().toString().split(' ').first;
+
+                          return Column(
+                            children: [
+                              for (final c in items)
+                                Card(
+                                  elevation: 0,
+                                  color: Colors.grey.shade100,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
-                                      vertical: 6,
                                     ),
-                                    leading: CircleAvatar(
-                                      backgroundColor: const Color(
-                                        0xFF2BBFD4,
-                                      ).withOpacity(0.15),
-                                      foregroundColor: const Color(0xFF2BBFD4),
-                                      child: Text(
-                                        displayName(c.authorName).isNotEmpty
-                                            ? displayName(
-                                              c.authorName,
-                                            )[0].toUpperCase()
-                                            : '?',
+                                    child: ListTile(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 6,
+                                          ),
+                                      leading: CircleAvatar(
+                                        backgroundColor: const Color(
+                                          0xFF2BBFD4,
+                                        ).withOpacity(0.15),
+                                        foregroundColor: const Color(
+                                          0xFF2BBFD4,
+                                        ),
+                                        child: Text(
+                                          displayName(c.authorName).isNotEmpty
+                                              ? displayName(
+                                                c.authorName,
+                                              )[0].toUpperCase()
+                                              : '?',
+                                        ),
                                       ),
-                                    ),
-                                    title: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            displayName(c.authorName),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                      title: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              displayName(c.authorName),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          onlyDate(c.createdAt),
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.black54,
+                                          Text(
+                                            onlyDate(c.createdAt),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black54,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
+                                      subtitle: Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(c.text),
+                                      ),
+                                      trailing:
+                                          isAdmin
+                                              ? IconButton(
+                                                tooltip: 'Delete comment',
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  color: Colors.redAccent,
+                                                ),
+                                                onPressed:
+                                                    () => _confirmDeleteComment(
+                                                      context,
+                                                      articleRef,
+                                                      c,
+                                                    ),
+                                              )
+                                              : null,
                                     ),
-                                    subtitle: Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Text(c.text),
-                                    ),
-                                    trailing:
-                                        isAdmin
-                                            ? IconButton(
-                                              tooltip: 'Delete comment',
-                                              icon: const Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.redAccent,
-                                              ),
-                                              onPressed:
-                                                  () => _confirmDeleteComment(
-                                                    context,
-                                                    articleRef,
-                                                    c,
-                                                  ),
-                                            )
-                                            : null,
                                   ),
                                 ),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
                   ],
                 ],
               );
@@ -385,8 +402,8 @@ class ArticleDetailScreen extends StatelessWidget {
 
 class _NewCommentBox extends StatefulWidget {
   final String articleId;
-  final String visibility; // 'public' | 'private'
-  const _NewCommentBox({required this.articleId, required this.visibility});
+  final bool isPrivate;
+  const _NewCommentBox({required this.articleId, required this.isPrivate});
 
   @override
   State<_NewCommentBox> createState() => _NewCommentBoxState();
@@ -394,14 +411,7 @@ class _NewCommentBox extends StatefulWidget {
 
 class _NewCommentBoxState extends State<_NewCommentBox> {
   final _controller = TextEditingController();
-  bool _privateToAdmin = false;
   bool _sending = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _privateToAdmin = widget.visibility == 'private';
-  }
 
   Future<void> _send() async {
     if (_controller.text.trim().isEmpty) return;
@@ -427,7 +437,7 @@ class _NewCommentBoxState extends State<_NewCommentBox> {
       'authorUid': user.uid,
       'authorName': user.email ?? 'Vendor',
       'text': _controller.text.trim(),
-      'visibleTo': _privateToAdmin ? 'private' : 'public',
+      'visibleTo': widget.isPrivate ? 'private' : 'public',
       'createdAtClient': Timestamp.fromDate(DateTime.now().toUtc()),
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -471,15 +481,6 @@ class _NewCommentBoxState extends State<_NewCommentBox> {
           ],
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Checkbox(
-              value: _privateToAdmin,
-              onChanged: (v) => setState(() => _privateToAdmin = v ?? false),
-            ),
-            const Expanded(child: Text('Just me (private to admin)')),
-          ],
-        ),
       ],
     );
   }
