@@ -9,6 +9,7 @@ import 'home_shell.dart';
 import 'pending_approval_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config.dart';
+import '../utils/role_utils.dart';
 
 class SplashScreen extends StatefulWidget {
   static const route = '/';
@@ -53,12 +54,22 @@ class _SplashScreenState extends State<SplashScreen> {
             _go(AuthScreen.route);
             return;
           }
-          final data = (snap.data() as Map<String, dynamic>?) ?? {};
-          final roleLower = (data['role'] ?? 'vendor').toString().toLowerCase().trim();
+          final rawData = snap.data();
+          final data =
+              rawData is Map<String, dynamic> ? rawData : <String, dynamic>{};
+          final roleLower = normalizedRole(data);
           final approvedRaw = data['approved'];
           final disabledRaw = data['disabled'];
-          final approved = approvedRaw == true || approvedRaw == 'true';
-          final disabled = disabledRaw == true || disabledRaw == 'true';
+          final approved =
+              approvedRaw == true ||
+              approvedRaw == 'true' ||
+              approvedRaw == 1 ||
+              approvedRaw == '1';
+          final disabled =
+              disabledRaw == true ||
+              disabledRaw == 'true' ||
+              disabledRaw == 1 ||
+              disabledRaw == '1';
           if (roleLower == 'admin') {
             _go(HomeShell.route);
             return;
@@ -116,11 +127,12 @@ class _SplashScreenState extends State<SplashScreen> {
           _go(AuthScreen.route);
           return;
         }
-        data = (snap.data() as Map<String, dynamic>?) ?? {};
+        final rawData = snap.data();
+        data =
+            rawData is Map<String, dynamic> ? rawData : <String, dynamic>{};
       } catch (_) {}
 
-      final roleStr = (data['role'] ?? 'vendor').toString();
-      final roleLower = roleStr.toLowerCase().trim();
+      final roleLower = normalizedRole(data);
       try {
         await context
             .read<NotificationService>()
@@ -129,8 +141,16 @@ class _SplashScreenState extends State<SplashScreen> {
 
       final disabledRaw = data['disabled'];
       final approvedRaw = data['approved'];
-      final disabled = disabledRaw == true || disabledRaw == 'true';
-      final approved = approvedRaw == true || approvedRaw == 'true';
+      final disabled =
+          disabledRaw == true ||
+          disabledRaw == 'true' ||
+          disabledRaw == 1 ||
+          disabledRaw == '1';
+      final approved =
+          approvedRaw == true ||
+          approvedRaw == 'true' ||
+          approvedRaw == 1 ||
+          approvedRaw == '1';
 
       // Admins always bypass approval screen
       if (roleLower == 'admin') {

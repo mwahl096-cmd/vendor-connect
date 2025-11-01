@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
+import '../utils/role_utils.dart';
 import '../services/vendor_admin_service.dart';
 
 class AdminVendorsScreen extends StatefulWidget {
@@ -17,10 +18,6 @@ class _AdminVendorsScreenState extends State<AdminVendorsScreen> {
     final CollectionReference<Map<String, dynamic>> users = FirebaseFirestore
         .instance
         .collection(AppConfig.usersCollection);
-    final Query<Map<String, dynamic>> vendorQuery = users.where(
-      'role',
-      isEqualTo: 'vendor',
-    );
 
     return DefaultTabController(
       length: 2,
@@ -41,8 +38,8 @@ class _AdminVendorsScreenState extends State<AdminVendorsScreen> {
         ),
         body: TabBarView(
           children: [
-            _VendorList(query: vendorQuery, pending: true),
-            _VendorList(query: vendorQuery, pending: false),
+            _VendorList(source: users, pending: true),
+            _VendorList(source: users, pending: false),
           ],
         ),
       ),
@@ -51,9 +48,9 @@ class _AdminVendorsScreenState extends State<AdminVendorsScreen> {
 }
 
 class _VendorList extends StatefulWidget {
-  final Query<Map<String, dynamic>> query;
+  final CollectionReference<Map<String, dynamic>> source;
   final bool pending;
-  const _VendorList({required this.query, required this.pending});
+  const _VendorList({required this.source, required this.pending});
 
   @override
   State<_VendorList> createState() => _VendorListState();
@@ -206,7 +203,7 @@ class _VendorListState extends State<_VendorList> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: widget.query.orderBy('name').snapshots(),
+      stream: widget.source.snapshots(),
       builder: (context, snap) {
         List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
 
@@ -216,14 +213,21 @@ class _VendorListState extends State<_VendorList> {
         if (snapshot != null) {
           final filtered = snapshot.docs.where((d) {
             final data = d.data();
-            final approved = data['approved'] == true;
-            final disabled = data['disabled'] == true;
+            final role = normalizedRole(data);
+            if (role != 'vendor') return false;
+            final approved = truthy(data['approved']);
+            final disabled = truthy(data['disabled']);
             if (widget.pending) {
               return !approved || disabled;
             } else {
               return approved && !disabled;
             }
-          }).toList();
+          }).toList()
+            ..sort(
+              (a, b) => (a.data()['name'] ?? '').toString().compareTo(
+                (b.data()['name'] ?? '').toString(),
+              ),
+            );
 
           if (filtered.isEmpty && snapshot.metadata.isFromCache && _cachedDocs != null) {
             docs = _cachedDocs!;
@@ -498,8 +502,8 @@ class VendorDetailScreen extends StatelessWidget {
             return const Center(child: Text('Not found'));
           }
           final data = snap.data!.data()!;
-          final disabled = (data['disabled'] ?? false) as bool;
-          final approved = (data['approved'] ?? false) as bool;
+          final disabled = truthy(data['disabled']);
+          final approved = truthy(data['approved']);
           return Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -616,6 +620,8 @@ class VendorDetailScreen extends StatelessWidget {
     );
   }
 }
+
+
 
 
 

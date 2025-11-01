@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
 import '../utils/time_utils.dart';
+import '../utils/role_utils.dart';
 
 import 'manage_articles_screen.dart';
 import 'admin_vendors_screen.dart';
@@ -18,9 +19,16 @@ class AdminDashboardScreen extends StatelessWidget {
 
   Stream<int> _countVendors() => FirebaseFirestore.instance
       .collection(AppConfig.usersCollection)
-      .where('role', isEqualTo: 'vendor')
       .snapshots()
-      .map((s) => s.size);
+      .map(
+        (s) => s.docs.where((doc) {
+          final data = doc.data();
+          final role = normalizedRole(data);
+          final approved = truthy(data['approved']);
+          final disabled = truthy(data['disabled']);
+          return role == 'vendor' && approved && !disabled;
+        }).length,
+      );
 
   Stream<int> _countComments24h() {
     final window = const Duration(hours: 24);
@@ -166,7 +174,14 @@ class _StatCard extends StatelessWidget {
                 StreamBuilder<int>(
                   stream: stream,
                   builder: (context, snap) {
-                    final value = snap.data?.toString() ?? '—';
+                    if (snap.hasError) {
+                      return Text(
+                        '!',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      );
+                    }
+                    final value = snap.data?.toString() ?? '-';
                     return Text(
                       value,
                       style: Theme.of(context).textTheme.headlineSmall
@@ -190,3 +205,4 @@ class _StatCard extends StatelessWidget {
 }
 
 // Panels removed per request; navigation happens via stat cards
+

@@ -3,11 +3,38 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isSignedIn() { return request.auth != null; }
+    function hasAdminRole(value) {
+      return value is string && value.matches('(?i)^\\s*admin\\s*$');
+    }
+    function isTruthy(value) {
+      return value == true ||
+        (value is int && value != 0) ||
+        (value is float && value != 0.0) ||
+        (value is string && value.matches('(?i)^(true|1|yes)\\s*$'));
+    }
+    function isFalsy(value) {
+      return !isTruthy(value);
+    }
+    function currentUserData() {
+      return isSignedIn()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+    }
+    function hasAdminPrivileges(data) {
+      return data != null && (
+        hasAdminRole(data.role) ||
+        hasAdminRole(data.Role) ||
+        hasAdminRole(data.userRole) ||
+        hasAdminRole(data.UserRole)
+      );
+    }
     function isAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role is string &&
-        lower(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role) == 'admin';
+      return hasAdminPrivileges(currentUserData());
+    }
+    function isActiveVendor(data) {
+      return data != null &&
+        isTruthy(data.approved) &&
+        isFalsy(data.disabled);
     }
 
     match /users/{uid} {
@@ -19,21 +46,16 @@ service cloud.firestore {
 
     match /articles/{articleId} {
       allow read: if isSignedIn() && (
-        isAdmin() || (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
-        )
+        isAdmin() || isActiveVendor(currentUserData())
       );
       allow create, update, delete: if isAdmin();
 
       match /comments/{commentId} {
-        allow read: if isSignedIn() && (
-          isAdmin() ||
-          (!('visibleTo' in resource.data) ||
-            resource.data.visibleTo == 'public')
-        );
+        allow read: if true;
+        allow list: if true;
+        allow get: if true;
         allow create: if isSignedIn() && (
-          get(/databases/$(database)/documents/articles/$(articleId)).data.allowComments == true
+          isTruthy(get(/databases/$(database)/documents/articles/$(articleId)).data.allowComments)
         );
         allow update, delete: if isAdmin() ||
           (isSignedIn() && request.auth.uid == resource.data.authorUid);
@@ -42,16 +64,10 @@ service cloud.firestore {
 
     match /reads/{readId} {
       allow read: if isSignedIn() && (
-        isAdmin() || (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
-        )
+        isAdmin() || isActiveVendor(currentUserData())
       );
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid && (
-        isAdmin() || (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
-        )
+        isAdmin() || isActiveVendor(currentUserData())
       );
       allow update, delete: if isAdmin() ||
         (isSignedIn() && request.resource.data.uid == request.auth.uid);
@@ -68,3 +84,5 @@ service cloud.firestore {
     }
   }
 }
+
+

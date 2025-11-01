@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
@@ -18,17 +17,11 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
   static const Duration _window = Duration(hours: 24);
   static const int _maxResults = 300;
 
-  late final Query<Map<String, dynamic>> _baseQuery;
-  late final Future<bool> _isAdminFuture;
   Timer? _refreshTicker;
 
   @override
   void initState() {
     super.initState();
-    _baseQuery = FirebaseFirestore.instance
-        .collectionGroup(AppConfig.commentsSubcollection)
-        .limit(_maxResults);
-    _isAdminFuture = _checkIsAdmin(FirebaseAuth.instance.currentUser);
     _refreshTicker = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -43,82 +36,74 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
   @override
   Widget build(BuildContext context) {
     final reference = DateTime.now();
+    final cutoffTimestamp = Timestamp.fromDate(
+      DateTime.now().toUtc().subtract(_window),
+    );
+    final query = FirebaseFirestore.instance
+        .collectionGroup(AppConfig.commentsSubcollection)
+        .where('createdAtClient', isGreaterThanOrEqualTo: cutoffTimestamp)
+        .orderBy('createdAtClient', descending: true)
+        .limit(_maxResults);
 
     return Scaffold(
       appBar: AppBar(title: const Text('New Comments (24h)')),
-      body: FutureBuilder<bool>(
-        future: _isAdminFuture,
-        builder: (context, adminSnap) {
-          if (adminSnap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (adminSnap.data != true) {
-            return const Center(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: query.snapshots(includeMetadataChanges: true),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(
               child: Text(
-                'You do not have permission to view this screen.',
+                'Could not load comments.\n${snap.error}',
+                style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
             );
           }
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _baseQuery.snapshots(includeMetadataChanges: true),
-            builder: (context, snap) {
-              if (snap.hasError) {
-                return Center(
-                  child: Text(
-                    'Could not load comments.\n${snap.error}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }
 
-              if (snap.connectionState == ConnectionState.waiting &&
-                  !snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              final docs =
-                  snap.data?.docs ??
-                  const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+          final docs =
+              snap.data?.docs ??
+              const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
-              final filtered =
-                  docs.where((doc) {
-                      final data = doc.data();
-                      final dynamic raw =
-                          data['createdAtClient'] ?? data['createdAt'];
-                      if ((raw == null || raw is FieldValue) &&
-                          doc.metadata.hasPendingWrites) {
-                        return true;
-                      }
-                      return isWithinWindow(raw, _window, reference: reference);
-                    }).toList()
-                    ..sort((a, b) {
-                      final dynamic aRaw =
-                          a.data()['createdAtClient'] ?? a.data()['createdAt'];
-                      final dynamic bRaw =
-                          b.data()['createdAtClient'] ?? b.data()['createdAt'];
-                      final aTime =
-                          _toComparableDateTime(aRaw) ??
-                          DateTime.fromMillisecondsSinceEpoch(0);
-                      final bTime =
-                          _toComparableDateTime(bRaw) ??
-                          DateTime.fromMillisecondsSinceEpoch(0);
-                      return bTime.compareTo(aTime);
-                    });
+          final filtered =
+              docs.where((doc) {
+                  final data = doc.data();
+                  final dynamic raw =
+                      data['createdAt'] ?? data['createdAtClient'];
+                  if ((raw == null || raw is FieldValue) &&
+                      doc.metadata.hasPendingWrites) {
+                    return true;
+                  }
+                  return isWithinWindow(raw, _window, reference: reference);
+                }).toList()
+                ..sort((a, b) {
+                  final dynamic aRaw =
+                      a.data()['createdAt'] ?? a.data()['createdAtClient'];
+                  final dynamic bRaw =
+                      b.data()['createdAt'] ?? b.data()['createdAtClient'];
+                  final aTime =
+                      _toComparableDateTime(aRaw) ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final bTime =
+                      _toComparableDateTime(bRaw) ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime);
+                });
 
-              if (filtered.isEmpty) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return const Center(
-                  child: Text('No comments in the last 24 hours.'),
-                );
-              }
+          if (filtered.isEmpty) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return const Center(
+              child: Text('No comments in the last 24 hours.'),
+            );
+          }
 
-              return _buildCommentsList(filtered);
-            },
-          );
+          return _buildCommentsList(filtered);
         },
       ),
     );
@@ -135,7 +120,7 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
         final data = doc.data();
         final text = (data['text'] ?? '').toString();
         final author = _shortName((data['authorName'] ?? '').toString());
-        final dynamic raw = data['createdAtClient'] ?? data['createdAt'];
+        final dynamic raw = data['createdAt'] ?? data['createdAtClient'];
         final timestamp = _toComparableDateTime(raw);
         final dateLabel =
             timestamp != null
@@ -169,21 +154,6 @@ DateTime? _toComparableDateTime(dynamic value) {
     ).toLocal();
   }
   return null;
-}
-
-Future<bool> _checkIsAdmin(User? user) async {
-  if (user == null) return false;
-  try {
-    final doc =
-        await FirebaseFirestore.instance
-            .collection(AppConfig.usersCollection)
-            .doc(user.uid)
-            .get();
-    final role = (doc.data()?['role'] ?? '').toString().toLowerCase();
-    return role == 'admin';
-  } catch (_) {
-    return false;
-  }
 }
 
 String _shortName(String raw) {

@@ -8,6 +8,7 @@ import '../config.dart';
 import '../models/article.dart';
 import '../models/comment.dart';
 import '../services/firestore_service.dart';
+import '../utils/role_utils.dart';
 
 class ArticleDetailScreen extends StatelessWidget {
   final String articleId;
@@ -76,19 +77,13 @@ class ArticleDetailScreen extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        final roleRaw = userSnap.data?.data()?['role']?.toString() ?? 'vendor';
-        final isAdmin = roleRaw.toLowerCase().trim() == 'admin';
+        final roleRaw = normalizedRole(userSnap.data?.data());
+        final isAdmin = roleRaw == 'admin';
 
-        Query<Map<String, dynamic>> commentsQuery = articleRef.collection(
-          AppConfig.commentsSubcollection,
-        );
+        Query<Map<String, dynamic>> commentsQuery = articleRef
+            .collection(AppConfig.commentsSubcollection)
+            .orderBy('createdAt', descending: true);
         final bool filterForPublic = !isAdmin;
-
-        if (isAdmin) {
-          commentsQuery = commentsQuery.orderBy('createdAt', descending: true);
-        } else {
-          commentsQuery = commentsQuery.where('visibleTo', isEqualTo: 'public');
-        }
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -279,7 +274,12 @@ class ArticleDetailScreen extends StatelessWidget {
                                   .map((d) => ArticleComment.fromDoc(d))
                                   .toList();
                           if (filterForPublic) {
-                            items.removeWhere((c) => c.visibleTo != 'public');
+                            items.removeWhere((c) {
+                              if (uid != null && c.authorUid == uid) {
+                                return false;
+                              }
+                              return c.visibleTo != 'public';
+                            });
                           }
                           items.sort(
                             (a, b) => b.createdAt.compareTo(a.createdAt),
