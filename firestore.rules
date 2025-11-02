@@ -45,21 +45,17 @@ service cloud.firestore {
     }
 
     match /articles/{articleId} {
-      allow read: if isSignedIn() && (
-        isAdmin() || isActiveVendor(currentUserData())
-      );
+      allow read: if true;
       allow create, update, delete: if isAdmin();
+    }
 
-      match /comments/{commentId} {
-        allow read: if true;
-        allow list: if true;
-        allow get: if true;
-        allow create: if isSignedIn() && (
-          isTruthy(get(/databases/$(database)/documents/articles/$(articleId)).data.allowComments)
-        );
-        allow update, delete: if isAdmin() ||
-          (isSignedIn() && request.auth.uid == resource.data.authorUid);
-      }
+    match /{document=**}/comments/{commentId} {
+      allow read: if true;
+      allow list: if true;
+      allow get: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == resource.data.authorUid);
     }
 
     match /reads/{readId} {
