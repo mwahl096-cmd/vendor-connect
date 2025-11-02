@@ -19,3 +19,4 @@ ios/.generated/
 .idea/
 .vscode/
 
+ios_signing/
