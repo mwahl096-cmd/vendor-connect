@@ -8,6 +8,7 @@ pubspec.lock
 # Android / iOS
 android/.gradle/
 android/app/build/
+android/key.properties
 ios/Pods/
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
