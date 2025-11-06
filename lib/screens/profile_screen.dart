@@ -1,15 +1,16 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../config.dart';
+import '../services/account_service.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'auth_screen.dart';
-import 'admin_vendors_screen.dart';
 import 'admin_dashboard.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -42,6 +43,178 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     if (result == true) {
       messenger.showSnackBar(const SnackBar(content: Text('Profile updated')));
+    }
+  }
+
+  Future<String?> _showDeleteAccountDialog({
+    required bool requirePassword,
+    required String email,
+  }) async {
+    final controller = TextEditingController();
+    String? errorText;
+    bool obscure = true;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Delete account'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'This will permanently remove your profile, account data, '
+                      'and access for $email. This action cannot be undone.',
+                    ),
+                    if (requirePassword) ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: controller,
+                        obscureText: obscure,
+                        autofillHints: const [AutofillHints.password],
+                        decoration: InputDecoration(
+                          labelText: 'Confirm password',
+                          errorText: errorText,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              obscure
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                            onPressed: () => setState(() => obscure = !obscure),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    final password = controller.text.trim();
+                    if (requirePassword && password.isEmpty) {
+                      setState(() => errorText = 'Password required');
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(password);
+                  },
+                  child: const Text('Delete account'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    controller.dispose();
+    return result;
+  }
+
+  Future<void> _confirmDeleteAccount(String email) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final requirePassword = user.providerData.any(
+      (info) => info.providerId == 'password',
+    );
+    final password = await _showDeleteAccountDialog(
+      requirePassword: requirePassword,
+      email: email,
+    );
+    if (password == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final notificationService = context.read<NotificationService>();
+    final accountService = AccountService();
+    final uid = user.uid;
+
+    var progressVisible = true;
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    ).then((_) => progressVisible = false);
+
+    var deletionSucceeded = false;
+    String? errorMessage;
+    try {
+      await accountService.deleteAccount(password: password);
+      deletionSucceeded = true;
+      unawaited(notificationService.cleanupAfterSignOut(uidOverride: uid));
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'missing-password':
+          errorMessage = 'Enter your password to confirm account deletion.';
+          break;
+        case 'wrong-password':
+        case 'invalid-credential':
+        case 'user-mismatch':
+          errorMessage = 'Incorrect password. Please try again.';
+          break;
+        case 'requires-recent-login':
+          errorMessage =
+              'For security reasons, please sign in again and retry deleting '
+              'your account.';
+          break;
+        default:
+          errorMessage =
+              e.message ?? 'Unable to delete account. Please try again.';
+      }
+    } on FirebaseFunctionsException catch (e) {
+      errorMessage =
+          e.message ??
+          'Unable to delete account right now. Please try again later.';
+    } on FirebaseException catch (e) {
+      errorMessage =
+          e.message ?? 'Unable to delete account. Please try again later.';
+    } catch (_) {
+      errorMessage = 'Unable to delete account. Please try again later.';
+    } finally {
+      if (progressVisible && mounted) {
+        rootNavigator.pop();
+      }
+    }
+
+    if (!mounted) return;
+    if (deletionSucceeded) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (dialogContext) => AlertDialog(
+              title: const Text('Account deleted'),
+              content: const Text(
+                'Your account and associated data have been deleted.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+      );
+      if (!mounted) return;
+      navigator.pushNamedAndRemoveUntil(AuthScreen.route, (route) => false);
+    } else if (errorMessage != null) {
+      messenger.showSnackBar(SnackBar(content: Text(errorMessage)));
     }
   }
 
@@ -178,6 +351,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 20),
               ],
+              Text('Account', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: () async {
                   final notificationService =
@@ -218,6 +393,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
                 icon: const Icon(Icons.logout),
                 label: const Text('Sign out'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                ),
+                onPressed: () => _confirmDeleteAccount(email),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Delete account'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Deleting your account removes your profile, comments, and '
+                'access permanently.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.black54),
               ),
             ],
           );

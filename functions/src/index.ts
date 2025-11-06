@@ -415,6 +415,75 @@ export const adminSetVendorFlags = onCall(async (req) => {
 });
 
 
+async function deleteDocsInChunks(
+  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+  firestore: FirebaseFirestore.Firestore,
+  chunkSize = 400
+): Promise<void> {
+  for (let i = 0; i < docs.length; i += chunkSize) {
+    const batch = firestore.batch();
+    for (const doc of docs.slice(i, i + chunkSize)) {
+      batch.delete(doc.ref);
+    }
+    await batch.commit();
+  }
+}
+
+// Callable for users to delete their own account and Firestore data
+export const selfDeleteAccount = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+
+  const firestore = admin.firestore();
+
+  try {
+    await firestore.doc(`users/${uid}`).delete();
+  } catch (err) {
+    logger.warn("Failed to delete user profile during self deletion", err as any);
+  }
+
+  try {
+    const readsSnap = await firestore.collection("reads").where("uid", "==", uid).get();
+    if (!readsSnap.empty) {
+      await deleteDocsInChunks(readsSnap.docs, firestore);
+    }
+  } catch (err) {
+    logger.warn("Failed to delete user read receipts during self deletion", err as any);
+  }
+
+  try {
+    const commentSnap = await firestore.collectionGroup("comments").where("authorUid", "==", uid).get();
+    if (!commentSnap.empty) {
+      await deleteDocsInChunks(commentSnap.docs, firestore);
+    }
+  } catch (err) {
+    logger.warn("Failed to delete user comments during self deletion", err as any);
+  }
+
+  try {
+    const tokenSnap = await firestore.collection("fcmTokens").where("uid", "==", uid).get();
+    if (!tokenSnap.empty) {
+      await deleteDocsInChunks(tokenSnap.docs, firestore);
+    }
+  } catch (err) {
+    logger.warn("Failed to delete FCM tokens during self deletion", err as any);
+  }
+
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (err: any) {
+    if (err.code !== "auth/user-not-found") {
+      logger.error("Failed to delete auth user during self deletion", err as any);
+      throw new HttpsError("internal", "Failed to delete authentication user");
+    }
+  }
+
+  return { ok: true };
+});
+
+
 
 
 
