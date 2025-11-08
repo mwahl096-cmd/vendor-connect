@@ -1,4 +1,4 @@
-package com.example.vendorconnectapp
+package com.vendorconnectapp.mobile
 
 import io.flutter.embedding.android.FlutterActivity
 

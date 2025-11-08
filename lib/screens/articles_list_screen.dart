@@ -1,7 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-import '../config.dart';
 import '../models/article.dart';
 import '../services/firestore_service.dart';
 import 'article_detail_screen.dart';
@@ -129,7 +128,7 @@ class _ArticleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final formattedDate =
-        article.publishedAt.toLocal().toString().split('.').first.replaceFirst(' ', ' · ');
+        DateFormat('MMM d, yyyy h:mm a').format(article.publishedAt.toLocal());
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),

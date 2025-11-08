@@ -14,6 +14,97 @@ class ArticleDetailScreen extends StatelessWidget {
   final String articleId;
   const ArticleDetailScreen({super.key, required this.articleId});
 
+  Future<void> _submitReport(
+    BuildContext context, {
+    required String articleId,
+    ArticleComment? comment,
+    Article? article,
+    required String description,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final messenger = ScaffoldMessenger.of(context);
+    if (user == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please sign in to report content.')),
+      );
+      return;
+    }
+    try {
+      await FirebaseFirestore.instance.collection(AppConfig.reportsCollection).add({
+        'articleId': articleId,
+        'commentId': comment?.id,
+        'targetType': comment != null ? 'comment' : 'article',
+        'targetPreview': (comment?.text ?? article?.title ?? '').trim(),
+        'reporterUid': user.uid,
+        'reporterEmail': user.email,
+        'message': description.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Thanks for the report - our team will review it.')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to submit report. Please try again later.')),
+      );
+    }
+  }
+
+  Future<void> _promptReport(
+    BuildContext context, {
+    required String articleId,
+    ArticleComment? comment,
+    Article? article,
+  }) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(comment != null ? 'Report comment' : 'Report article'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Describe what is wrong with this ${comment != null ? 'comment' : 'article'}.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Provide details (required)',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(controller.text.trim());
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+    await Future<void>.delayed(Duration.zero);
+    controller.dispose();
+    if (result == null || result.trim().isEmpty) return;
+    await _submitReport(
+      context,
+      articleId: articleId,
+      comment: comment,
+      article: article,
+      description: result,
+    );
+  }
+
   Future<void> _confirmDeleteComment(
     BuildContext context,
     DocumentReference<Map<String, dynamic>> articleRef,
@@ -87,7 +178,19 @@ class ArticleDetailScreen extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: Colors.white,
-          appBar: AppBar(title: const Text('Article')),
+          appBar: AppBar(
+            title: const Text('Article'),
+            actions: [
+              IconButton(
+                tooltip: 'Report article',
+                icon: const Icon(Icons.flag_outlined),
+                onPressed: () => _promptReport(
+                  context,
+                  articleId: articleId,
+                ),
+              ),
+            ],
+          ),
           body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: articleRef.snapshots(),
             builder: (context, snap) {
@@ -365,22 +468,33 @@ class ArticleDetailScreen extends StatelessWidget {
                                         padding: const EdgeInsets.only(top: 4),
                                         child: Text(c.text),
                                       ),
-                                      trailing:
-                                          isAdmin
-                                              ? IconButton(
-                                                tooltip: 'Delete comment',
-                                                icon: const Icon(
-                                                  Icons.delete_outline,
-                                                  color: Colors.redAccent,
-                                                ),
-                                                onPressed:
-                                                    () => _confirmDeleteComment(
-                                                      context,
-                                                      articleRef,
-                                                      c,
-                                                    ),
-                                              )
-                                              : null,
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            tooltip: 'Report comment',
+                                            icon: const Icon(Icons.flag_outlined),
+                                            onPressed: () => _promptReport(
+                                              context,
+                                              articleId: article.id,
+                                              comment: c,
+                                            ),
+                                          ),
+                                          if (isAdmin)
+                                            IconButton(
+                                              tooltip: 'Delete comment',
+                                              icon: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.redAccent,
+                                              ),
+                                              onPressed: () => _confirmDeleteComment(
+                                                context,
+                                                articleRef,
+                                                c,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),

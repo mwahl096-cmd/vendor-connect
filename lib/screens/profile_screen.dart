@@ -608,67 +608,6 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   }
 }
 
-class _AdminPanel extends StatelessWidget {
-  const _AdminPanel();
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Admin - Articles')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream:
-            FirebaseFirestore.instance
-                .collection(AppConfig.articlesCollection)
-                .orderBy('publishedAt', descending: true)
-                .snapshots(),
-        builder: (context, snap) {
-          if (!snap.hasData)
-            return const Center(child: CircularProgressIndicator());
-          return ListView(
-            children:
-                snap.data!.docs.map((d) {
-                  final data = d.data() as Map<String, dynamic>;
-                  final allow = (data['allowComments'] ?? true) as bool;
-                  final vis =
-                      (data['commentsVisibility'] ?? 'public') as String;
-                  return ListTile(
-                    title: Text('${data['title']}'),
-                    subtitle: Text('Comments: ${allow ? 'On' : 'Off'} • $vis'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: allow,
-                          onChanged:
-                              (v) => d.reference.update({'allowComments': v}),
-                        ),
-                        const SizedBox(width: 8),
-                        DropdownButton<String>(
-                          value: vis,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'public',
-                              child: Text('Public'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'private',
-                              child: Text('Just Me'),
-                            ),
-                          ],
-                          onChanged:
-                              (v) =>
-                                  d.reference.update({'commentsVisibility': v}),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-          );
-        },
-      ),
-    );
-  }
-}
-
 // Small helper to render info tiles in the profile header
 Widget _infoTile(String title, String value) {
   return Card(
