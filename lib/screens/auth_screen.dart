@@ -149,25 +149,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (!_isLogin) ...[
-                        if (registering)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF2F6F7),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFF2BBFD4).withOpacity(0.3),
-                              ),
-                            ),
-                            child: Text(
-                              'Vendor accounts are created by Market Street Creatives. '
-                              'Please email ${AppConfig.supportEmail} to request access.',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
                         TextFormField(
                           controller: _name,
                           decoration: const InputDecoration(labelText: 'Your Name', prefixIcon: Icon(Icons.person_outline)),
