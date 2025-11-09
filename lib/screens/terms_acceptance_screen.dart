@@ -147,6 +147,7 @@ class _TermsAcceptanceScreenState extends State<TermsAcceptanceScreen> {
             CheckboxListTile(
               value: _agreed,
               onChanged: (v) => setState(() => _agreed = v ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
               title: Text(
                 'I agree to the Terms of Use (effective ${AppConfig.termsVersion}) '
                 'and understand Vendor Connect’s no-tolerance policy.',
