@@ -145,6 +145,55 @@ class ArticleDetailScreen extends StatelessWidget {
     }
   }
 
+  Set<String> _blockedUserIds(Map<String, dynamic>? data) {
+    if (data == null) return <String>{};
+    final raw = data['blockedUserIds'];
+    if (raw is Iterable) {
+      return raw
+          .whereType<String>()
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toSet();
+    }
+    return <String>{};
+  }
+
+  Future<void> _setBlockStatus(
+    BuildContext context, {
+    required String targetUid,
+    required bool block,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || targetUid.isEmpty || user.uid == targetUid) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await FirebaseFirestore.instance
+          .collection(AppConfig.usersCollection)
+          .doc(user.uid)
+          .set(
+        {
+          'blockedUserIds': block
+              ? FieldValue.arrayUnion([targetUid])
+              : FieldValue.arrayRemove([targetUid]),
+        },
+        SetOptions(merge: true),
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(block ? 'User blocked' : 'User unblocked'),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Unable to update blocked users. Please try again.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -168,8 +217,10 @@ class ArticleDetailScreen extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        final roleRaw = normalizedRole(userSnap.data?.data());
+        final userData = userSnap.data?.data();
+        final roleRaw = normalizedRole(userData);
         final isAdmin = roleRaw == 'admin';
+        final blockedUsers = _blockedUserIds(userData);
 
         Query<Map<String, dynamic>> commentsQuery = articleRef
             .collection(AppConfig.commentsSubcollection)
@@ -384,6 +435,11 @@ class ArticleDetailScreen extends StatelessWidget {
                               return c.visibleTo != 'public';
                             });
                           }
+                          if (blockedUsers.isNotEmpty) {
+                            items.removeWhere(
+                              (c) => blockedUsers.contains(c.authorUid),
+                            );
+                          }
                           items.sort(
                             (a, b) => b.createdAt.compareTo(a.createdAt),
                           );
@@ -493,6 +549,43 @@ class ArticleDetailScreen extends StatelessWidget {
                                                 c,
                                               ),
                                             ),
+                                          if (uid != null && uid != c.authorUid)
+                                            PopupMenuButton<String>(
+                                              tooltip: blockedUsers.contains(
+                                                    c.authorUid,
+                                                  )
+                                                  ? 'Unblock user'
+                                                  : 'Block user',
+                                              onSelected: (value) {
+                                                if (value == 'block') {
+                                                  _setBlockStatus(
+                                                    context,
+                                                    targetUid: c.authorUid,
+                                                    block: true,
+                                                  );
+                                                } else if (value == 'unblock') {
+                                                  _setBlockStatus(
+                                                    context,
+                                                    targetUid: c.authorUid,
+                                                    block: false,
+                                                  );
+                                                }
+                                              },
+                                              itemBuilder: (_) => [
+                                                if (!blockedUsers.contains(
+                                                  c.authorUid,
+                                                ))
+                                                  const PopupMenuItem(
+                                                    value: 'block',
+                                                    child: Text('Block user'),
+                                                  )
+                                                else
+                                                  const PopupMenuItem(
+                                                    value: 'unblock',
+                                                    child: Text('Unblock user'),
+                                                  ),
+                                              ],
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -528,7 +621,18 @@ class _NewCommentBoxState extends State<_NewCommentBox> {
   bool _sending = false;
 
   Future<void> _send() async {
-    if (_controller.text.trim().isEmpty) return;
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    if (AppConfig.containsProhibitedLanguage(text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please remove offensive or inappropriate language before posting.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() => _sending = true);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -550,7 +654,7 @@ class _NewCommentBoxState extends State<_NewCommentBox> {
       'articleId': widget.articleId,
       'authorUid': user.uid,
       'authorName': user.email ?? 'Vendor',
-      'text': _controller.text.trim(),
+      'text': text,
       'visibleTo': widget.isPrivate ? 'private' : 'public',
       'createdAtClient': Timestamp.fromDate(DateTime.now().toUtc()),
       'createdAt': FieldValue.serverTimestamp(),

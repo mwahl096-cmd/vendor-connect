@@ -46,6 +46,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  List<String> _blockedIdsFromData(Map<String, dynamic> data) {
+    final raw = data['blockedUserIds'];
+    if (raw is Iterable) {
+      return raw
+          .whereType<String>()
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const [];
+  }
+
+  Future<void> _manageBlockedVendors(List<String> blockedIds) async {
+    if (blockedIds.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have not blocked any vendors.')),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _BlockedVendorsSheet(blockedIds: blockedIds),
+    );
+  }
+
   Future<String?> _showDeleteAccountDialog({
     required bool requirePassword,
     required String email,
@@ -262,6 +289,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       : email.trim());
           final businessName = (data['businessName'] ?? '').toString();
           final phone = (data['phone'] ?? '').toString();
+          final blockedVendors = _blockedIdsFromData(data);
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -330,6 +358,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _infoTile(
                   'Username',
                   username.isNotEmpty ? username : '-',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.block),
+                  title: const Text('Blocked vendors'),
+                  subtitle: Text(
+                    blockedVendors.isEmpty
+                        ? 'You have not blocked any vendors.'
+                        : '${blockedVendors.length} vendor(s) blocked',
+                  ),
+                  onTap: () => _manageBlockedVendors(blockedVendors),
                 ),
               ),
               const SizedBox(height: 20),
@@ -609,6 +655,180 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       ),
     );
   }
+}
+
+class _BlockedVendorsSheet extends StatefulWidget {
+  final List<String> blockedIds;
+  const _BlockedVendorsSheet({required this.blockedIds});
+
+  @override
+  State<_BlockedVendorsSheet> createState() => _BlockedVendorsSheetState();
+}
+
+class _BlockedVendorsSheetState extends State<_BlockedVendorsSheet> {
+  bool _loading = true;
+  final List<_BlockedVendor> _vendors = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVendors();
+  }
+
+  Future<void> _loadVendors() async {
+    final db = FirebaseFirestore.instance;
+    final ids = widget.blockedIds;
+    final results = <_BlockedVendor>[];
+    try {
+      for (var i = 0; i < ids.length; i += 10) {
+        final chunk = ids.skip(i).take(10).toList();
+        final query = await db
+            .collection(AppConfig.usersCollection)
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        for (final doc in query.docs) {
+          final data = doc.data();
+          final name = (data['name'] ??
+                  data['businessName'] ??
+                  data['email'] ??
+                  'Vendor')
+              .toString();
+          final email = (data['email'] ?? '').toString();
+          results.add(
+            _BlockedVendor(uid: doc.id, name: name, email: email),
+          );
+        }
+        for (final id in chunk) {
+          if (!results.any((v) => v.uid == id)) {
+            results.add(
+              _BlockedVendor(uid: id, name: 'Unknown vendor', email: ''),
+            );
+          }
+        }
+      }
+    } catch (_) {
+      // Ignore fetch errors; we'll still show whatever we have.
+    }
+    results.sort((a, b) => a.name.compareTo(b.name));
+    if (!mounted) return;
+    setState(() {
+      _vendors
+        ..clear()
+        ..addAll(results);
+      _loading = false;
+    });
+  }
+
+  Future<void> _unblock(String uid) async {
+    final current = FirebaseAuth.instance.currentUser;
+    if (current == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection(AppConfig.usersCollection)
+          .doc(current.uid)
+          .update({
+        'blockedUserIds': FieldValue.arrayRemove([uid]),
+      });
+      if (!mounted) return;
+      setState(() {
+        _vendors.removeWhere((v) => v.uid == uid);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vendor unblocked')),
+      );
+      if (_vendors.isEmpty && mounted) {
+        Navigator.of(context).maybePop();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to unblock vendor. Please try again.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Blocked vendors',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (_vendors.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text('You have not blocked any vendors.'),
+              )
+            else
+              SizedBox(
+                height: 320,
+                child: ListView.builder(
+                  itemCount: _vendors.length,
+                  itemBuilder: (context, index) {
+                    final vendor = _vendors[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        child: Text(
+                          vendor.name.isNotEmpty
+                              ? vendor.name[0].toUpperCase()
+                              : '?',
+                        ),
+                      ),
+                      title: Text(vendor.name),
+                      subtitle: Text(
+                        vendor.email.isNotEmpty ? vendor.email : vendor.uid,
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => _unblock(vendor.uid),
+                        child: const Text('Unblock'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BlockedVendor {
+  final String uid;
+  final String name;
+  final String email;
+  const _BlockedVendor({
+    required this.uid,
+    required this.name,
+    required this.email,
+  });
 }
 
 // Small helper to render info tiles in the profile header

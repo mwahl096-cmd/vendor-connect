@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import 'auth_screen.dart';
 import 'home_shell.dart';
 import 'pending_approval_screen.dart';
+import 'terms_acceptance_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config.dart';
 import '../utils/role_utils.dart';
@@ -25,6 +26,14 @@ class _SplashScreenState extends State<SplashScreen> {
     if (_didNavigate || !mounted) return;
     _didNavigate = true;
     Navigator.of(context).pushReplacementNamed(route);
+  }
+  void _goTerms(String nextRoute) {
+    if (_didNavigate || !mounted) return;
+    _didNavigate = true;
+    Navigator.of(context).pushReplacementNamed(
+      TermsAcceptanceScreen.route,
+      arguments: TermsAcceptanceArgs(nextRoute: nextRoute),
+    );
   }
   @override
   void initState() {
@@ -70,8 +79,14 @@ class _SplashScreenState extends State<SplashScreen> {
               disabledRaw == 'true' ||
               disabledRaw == 1 ||
               disabledRaw == '1';
+          final acceptedRaw = (data['acceptedTermsVersion'] ?? '').toString();
+          final hasAcceptedTerms = acceptedRaw == AppConfig.termsVersion;
           if (roleLower == 'admin') {
-            _go(HomeShell.route);
+            if (!hasAcceptedTerms) {
+              _goTerms(HomeShell.route);
+            } else {
+              _go(HomeShell.route);
+            }
             return;
           }
           if (disabled) {
@@ -79,9 +94,19 @@ class _SplashScreenState extends State<SplashScreen> {
             if (!mounted) return;
             _go(AuthScreen.route);
           } else if (!approved) {
-            _go(PendingApprovalScreen.route);
+            if (!hasAcceptedTerms) {
+              _goTerms(PendingApprovalScreen.route);
+              return;
+            } else {
+              _go(PendingApprovalScreen.route);
+            }
           } else {
-            _go(HomeShell.route);
+            if (!hasAcceptedTerms) {
+              _goTerms(HomeShell.route);
+              return;
+            } else {
+              _go(HomeShell.route);
+            }
           }
         } catch (_) {
           _go(HomeShell.route);
@@ -151,11 +176,17 @@ class _SplashScreenState extends State<SplashScreen> {
           approvedRaw == 'true' ||
           approvedRaw == 1 ||
           approvedRaw == '1';
+      final acceptedRaw = (data['acceptedTermsVersion'] ?? '').toString();
+      final hasAcceptedTerms = acceptedRaw == AppConfig.termsVersion;
 
       // Admins always bypass approval screen
       if (roleLower == 'admin') {
         try { await context.read<AuthService>().updateLastLogin(); } catch (_) {}
-        _go(HomeShell.route);
+        if (!hasAcceptedTerms) {
+          _goTerms(HomeShell.route);
+        } else {
+          _go(HomeShell.route);
+        }
         return;
       }
 
@@ -170,10 +201,20 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       if (!approved) {
-        _go(PendingApprovalScreen.route);
+        if (!hasAcceptedTerms) {
+          _goTerms(PendingApprovalScreen.route);
+          return;
+        } else {
+          _go(PendingApprovalScreen.route);
+        }
       } else {
         try { await context.read<AuthService>().updateLastLogin(); } catch (_) {}
-        _go(HomeShell.route);
+        if (!hasAcceptedTerms) {
+          _goTerms(HomeShell.route);
+          return;
+        } else {
+          _go(HomeShell.route);
+        }
       }
     });
   }

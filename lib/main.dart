@@ -10,6 +10,7 @@ import 'screens/splash_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/pending_approval_screen.dart';
+import 'screens/terms_acceptance_screen.dart';
 import 'services/notification_service.dart';
 import 'services/auth_service.dart';
 
@@ -94,6 +95,14 @@ class MyApp extends StatelessWidget {
           AuthScreen.route: (_) => const AuthScreen(),
           HomeShell.route: (_) => const HomeShell(),
           PendingApprovalScreen.route: (_) => const PendingApprovalScreen(),
+          TermsAcceptanceScreen.route: (context) {
+            final args =
+                ModalRoute.of(context)?.settings.arguments as TermsAcceptanceArgs?;
+            return TermsAcceptanceScreen(
+              nextRoute: args?.nextRoute ?? HomeShell.route,
+              nextArguments: args?.nextArguments,
+            );
+          },
         },
         initialRoute: SplashScreen.route,
       ),

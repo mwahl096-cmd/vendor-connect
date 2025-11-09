@@ -26,7 +26,7 @@ class AuthService extends ChangeNotifier {
     User u, {
     required String name,
     required String businessName,
-    required String phone,
+    String? phone,
     String? username,
   }) async {
     final doc = _db.collection(AppConfig.usersCollection).doc(u.uid);
@@ -42,7 +42,7 @@ class AuthService extends ChangeNotifier {
         name: name,
         username: resolvedUsername,
         businessName: businessName,
-        phone: phone,
+        phone: (phone ?? '').trim(),
         email: u.email ?? '',
         role: 'vendor',
         approved: false,
