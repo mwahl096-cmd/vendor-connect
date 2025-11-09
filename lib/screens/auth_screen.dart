@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config.dart';
 import '../services/auth_service.dart';
 import 'splash_screen.dart';
 import 'pending_approval_screen.dart';
@@ -70,6 +71,17 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _submit() async {
+    if (!_isLogin && !AppConfig.enableSelfRegistration) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Self-service registration is currently disabled. '
+            'Please contact ${AppConfig.supportEmail} to request an account.',
+          ),
+        ),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
@@ -111,6 +123,8 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final registering =
+        !_isLogin && !AppConfig.enableSelfRegistration;
     return Scaffold(
       appBar: AppBar(title: Text(_isLogin ? 'Vendor Login' : 'Register Vendor')),
       body: Center(
@@ -135,22 +149,68 @@ class _AuthScreenState extends State<AuthScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (!_isLogin) ...[
+                        if (registering)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF2F6F7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF2BBFD4).withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              'Vendor accounts are created by Market Street Creatives. '
+                              'Please email ${AppConfig.supportEmail} to request access.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
                         TextFormField(
                           controller: _name,
+                          enabled: AppConfig.enableSelfRegistration,
                           decoration: const InputDecoration(labelText: 'Your Name', prefixIcon: Icon(Icons.person_outline)),
-                          validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+                          validator:
+                              (v) =>
+                                  (!_isLogin && !AppConfig.enableSelfRegistration)
+                                      ? null
+                                      : (v == null || v.isEmpty)
+                                          ? 'Required'
+                                          : null,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _business,
+                          enabled: AppConfig.enableSelfRegistration,
                           decoration: const InputDecoration(labelText: 'Business Name', prefixIcon: Icon(Icons.storefront_outlined)),
-                          validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+                          validator:
+                              (v) =>
+                                  (!_isLogin && !AppConfig.enableSelfRegistration)
+                                      ? null
+                                      : (v == null || v.isEmpty)
+                                          ? 'Required'
+                                          : null,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _phone,
-                          decoration: const InputDecoration(labelText: 'Phone', prefixIcon: Icon(Icons.phone_outlined)),
-                          validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+                          enabled: AppConfig.enableSelfRegistration,
+                          decoration: const InputDecoration(
+                            labelText: 'Phone (optional)',
+                            prefixIcon: Icon(Icons.phone_outlined),
+                          ),
+                          keyboardType: TextInputType.phone,
+                          validator: (v) {
+                            final trimmed = v?.trim() ?? '';
+                            if (trimmed.isEmpty) return null;
+                            final digitsOnly = trimmed.replaceAll(RegExp(r'\D'), '');
+                            if (digitsOnly.length < 7) {
+                              return 'Enter a valid phone or leave blank';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 12),
                       ],
@@ -168,7 +228,8 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
-                        onPressed: _loading ? null : _submit,
+                        onPressed:
+                            _loading || registering ? null : _submit,
                         child: Text(_isLogin ? 'SIGN IN' : 'REGISTER'),
                       ),
                       if (_isLogin) ...[

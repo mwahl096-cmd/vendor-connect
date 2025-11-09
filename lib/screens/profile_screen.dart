@@ -576,14 +576,17 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
               TextFormField(
                 controller: _phoneController,
                 decoration: const InputDecoration(
-                  labelText: 'Phone',
+                  labelText: 'Phone (optional)',
                   prefixIcon: Icon(Icons.phone_outlined),
                 ),
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.done,
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Required';
+                  final trimmed = value?.trim() ?? '';
+                  if (trimmed.isEmpty) return null;
+                  final digitsOnly = trimmed.replaceAll(RegExp(r'\D'), '');
+                  if (digitsOnly.length < 7) {
+                    return 'Enter a valid phone or leave blank';
                   }
                   return null;
                 },
