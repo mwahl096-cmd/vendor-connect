@@ -230,6 +230,9 @@ class NotificationService extends ChangeNotifier {
           uidOverride ??
           FirebaseAuth.instance.currentUser?.uid ??
           _lastKnownUid;
+      if (uid == null) {
+        return;
+      }
       _lastKnownUid = uid;
       await FirebaseFirestore.instance.collection('fcmTokens').doc(token).set({
         'uid': uid,
