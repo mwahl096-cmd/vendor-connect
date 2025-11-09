@@ -20,7 +20,7 @@ class AppConfig {
   static const bool disableIosPush = false;
 
   /// Toggle whether vendors can create accounts directly in-app.
-  static const bool enableSelfRegistration = false;
+  static const bool enableSelfRegistration = true;
 
   /// Support email surfaced in user-facing guidance.
   static const String supportEmail = 'info@marketstreetcreatives.com';
