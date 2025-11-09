@@ -170,7 +170,6 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         TextFormField(
                           controller: _name,
-                          enabled: AppConfig.enableSelfRegistration,
                           decoration: const InputDecoration(labelText: 'Your Name', prefixIcon: Icon(Icons.person_outline)),
                           validator:
                               (v) =>
@@ -183,7 +182,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _business,
-                          enabled: AppConfig.enableSelfRegistration,
                           decoration: const InputDecoration(labelText: 'Business Name', prefixIcon: Icon(Icons.storefront_outlined)),
                           validator:
                               (v) =>
@@ -196,7 +194,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _phone,
-                          enabled: AppConfig.enableSelfRegistration,
                           decoration: const InputDecoration(
                             labelText: 'Phone (optional)',
                             prefixIcon: Icon(Icons.phone_outlined),
