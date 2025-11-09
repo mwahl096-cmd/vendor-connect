@@ -27,6 +27,7 @@ class _SplashScreenState extends State<SplashScreen> {
     _didNavigate = true;
     Navigator.of(context).pushReplacementNamed(route);
   }
+
   void _goTerms(String nextRoute) {
     if (_didNavigate || !mounted) return;
     _didNavigate = true;
@@ -35,6 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
       arguments: TermsAcceptanceArgs(nextRoute: nextRoute),
     );
   }
+
   @override
   void initState() {
     super.initState();
@@ -58,7 +60,9 @@ class _SplashScreenState extends State<SplashScreen> {
             await FirebaseAuth.instance.signOut();
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Account not found. Please contact support.')),
+              const SnackBar(
+                content: Text('Account not found. Please contact support.'),
+              ),
             );
             _go(AuthScreen.route);
             return;
@@ -94,12 +98,7 @@ class _SplashScreenState extends State<SplashScreen> {
             if (!mounted) return;
             _go(AuthScreen.route);
           } else if (!approved) {
-            if (!hasAcceptedTerms) {
-              _goTerms(PendingApprovalScreen.route);
-              return;
-            } else {
-              _go(PendingApprovalScreen.route);
-            }
+            _go(PendingApprovalScreen.route);
           } else {
             if (!hasAcceptedTerms) {
               _goTerms(HomeShell.route);
@@ -113,15 +112,16 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       });
       // Initialize notifications, but never block navigation
-      try { await context.read<NotificationService>().init(); } catch (_) {}
+      try {
+        await context.read<NotificationService>().init();
+      } catch (_) {}
 
       // Get auth state with a hard timeout and fallback
       User? u;
       try {
-        u = await FirebaseAuth.instance
-            .authStateChanges()
-            .first
-            .timeout(const Duration(seconds: 2));
+        u = await FirebaseAuth.instance.authStateChanges().first.timeout(
+          const Duration(seconds: 2),
+        );
       } catch (_) {
         u = FirebaseAuth.instance.currentUser;
       }
@@ -147,21 +147,22 @@ class _SplashScreenState extends State<SplashScreen> {
           await FirebaseAuth.instance.signOut();
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account not found. Please contact support.')),
+            const SnackBar(
+              content: Text('Account not found. Please contact support.'),
+            ),
           );
           _go(AuthScreen.route);
           return;
         }
         final rawData = snap.data();
-        data =
-            rawData is Map<String, dynamic> ? rawData : <String, dynamic>{};
+        data = rawData is Map<String, dynamic> ? rawData : <String, dynamic>{};
       } catch (_) {}
 
       final roleLower = normalizedRole(data);
       try {
-        await context
-            .read<NotificationService>()
-            .subscribeAdmins(roleLower == 'admin');
+        await context.read<NotificationService>().subscribeAdmins(
+          roleLower == 'admin',
+        );
       } catch (_) {}
 
       final disabledRaw = data['disabled'];
@@ -181,7 +182,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
       // Admins always bypass approval screen
       if (roleLower == 'admin') {
-        try { await context.read<AuthService>().updateLastLogin(); } catch (_) {}
+        try {
+          await context.read<AuthService>().updateLastLogin();
+        } catch (_) {}
         if (!hasAcceptedTerms) {
           _goTerms(HomeShell.route);
         } else {
@@ -201,14 +204,11 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       if (!approved) {
-        if (!hasAcceptedTerms) {
-          _goTerms(PendingApprovalScreen.route);
-          return;
-        } else {
-          _go(PendingApprovalScreen.route);
-        }
+        _go(PendingApprovalScreen.route);
       } else {
-        try { await context.read<AuthService>().updateLastLogin(); } catch (_) {}
+        try {
+          await context.read<AuthService>().updateLastLogin();
+        } catch (_) {}
         if (!hasAcceptedTerms) {
           _goTerms(HomeShell.route);
           return;
