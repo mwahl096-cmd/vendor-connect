@@ -456,9 +456,12 @@ class ArticleDetailScreen extends StatelessWidget {
                             return const Text('No comments yet');
                           }
 
-                          String displayName(String s) {
-                            final at = s.indexOf('@');
-                            return at > 0 ? s.substring(0, at) : s;
+                          String displayName(String raw) {
+                            final name = raw.trim();
+                            if (name.contains(' ')) return name;
+                            if (name.contains('@'))
+                              return name.split('@').first;
+                            return name.isEmpty ? 'Vendor' : name;
                           }
 
                           String onlyDate(DateTime d) =>
@@ -662,10 +665,24 @@ class _NewCommentBoxState extends State<_NewCommentBox> {
             .doc(widget.articleId)
             .collection(AppConfig.commentsSubcollection)
             .doc();
+
+    String authorName = (user.displayName ?? user.email ?? 'Vendor').trim();
+    try {
+      final profileSnap =
+          await FirebaseFirestore.instance
+              .collection(AppConfig.usersCollection)
+              .doc(user.uid)
+              .get();
+      final profileName = (profileSnap.data()?['name'] ?? '').toString().trim();
+      if (profileName.isNotEmpty) {
+        authorName = profileName;
+      }
+    } catch (_) {}
+
     await doc.set({
       'articleId': widget.articleId,
       'authorUid': user.uid,
-      'authorName': user.email ?? 'Vendor',
+      'authorName': authorName,
       'text': text,
       'visibleTo': widget.isPrivate ? 'private' : 'public',
       'createdAtClient': Timestamp.fromDate(DateTime.now().toUtc()),

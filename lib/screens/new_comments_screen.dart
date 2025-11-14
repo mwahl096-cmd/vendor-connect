@@ -120,7 +120,7 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
         final doc = comments[i];
         final data = doc.data();
         final text = (data['text'] ?? '').toString();
-        final author = _shortName((data['authorName'] ?? '').toString());
+        final author = (data['authorName'] ?? 'Vendor').toString().trim();
         final dynamic raw = data['createdAt'] ?? data['createdAtClient'];
         final timestamp = _toComparableDateTime(raw);
         final dateLabel =
