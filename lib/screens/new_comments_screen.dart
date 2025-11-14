@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../config.dart';
 import '../utils/time_utils.dart';
+import 'article_detail_screen.dart';
 
 class NewCommentsScreen extends StatefulWidget {
   const NewCommentsScreen({super.key});
@@ -127,8 +128,10 @@ class _NewCommentsScreenState extends State<NewCommentsScreen> {
                 ? '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')} '
                     '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}'
                 : (doc.metadata.hasPendingWrites ? 'just now' : 'Unknown time');
-        final articleId = (data['articleId'] ?? '').toString();
+        final articleId = (data['articleId'] ?? '').toString().trim();
         return ListTile(
+          onTap:
+              articleId.isEmpty ? null : () => _openArticle(context, articleId),
           title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
           subtitle: Text('$author • $dateLabel'),
           trailing: Text(
@@ -161,4 +164,12 @@ String _shortName(String raw) {
   if (trimmed.isEmpty) return 'Vendor';
   final at = trimmed.indexOf('@');
   return at > 0 ? trimmed.substring(0, at) : trimmed;
+}
+
+void _openArticle(BuildContext context, String articleId) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ArticleDetailScreen(articleId: articleId),
+    ),
+  );
 }

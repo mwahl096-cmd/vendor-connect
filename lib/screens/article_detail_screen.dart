@@ -30,22 +30,28 @@ class ArticleDetailScreen extends StatelessWidget {
       return;
     }
     try {
-      await FirebaseFirestore.instance.collection(AppConfig.reportsCollection).add({
-        'articleId': articleId,
-        'commentId': comment?.id,
-        'targetType': comment != null ? 'comment' : 'article',
-        'targetPreview': (comment?.text ?? article?.title ?? '').trim(),
-        'reporterUid': user.uid,
-        'reporterEmail': user.email,
-        'message': description.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection(AppConfig.reportsCollection)
+          .add({
+            'articleId': articleId,
+            'commentId': comment?.id,
+            'targetType': comment != null ? 'comment' : 'article',
+            'targetPreview': (comment?.text ?? article?.title ?? '').trim(),
+            'reporterUid': user.uid,
+            'reporterEmail': user.email,
+            'message': description.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
       messenger.showSnackBar(
-        const SnackBar(content: Text('Thanks for the report - our team will review it.')),
+        const SnackBar(
+          content: Text('Thanks for the report - our team will review it.'),
+        ),
       );
     } catch (_) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Unable to submit report. Please try again later.')),
+        const SnackBar(
+          content: Text('Unable to submit report. Please try again later.'),
+        ),
       );
     }
   }
@@ -172,18 +178,14 @@ class ArticleDetailScreen extends StatelessWidget {
       await FirebaseFirestore.instance
           .collection(AppConfig.usersCollection)
           .doc(user.uid)
-          .set(
-        {
-          'blockedUserIds': block
-              ? FieldValue.arrayUnion([targetUid])
-              : FieldValue.arrayRemove([targetUid]),
-        },
-        SetOptions(merge: true),
-      );
+          .set({
+            'blockedUserIds':
+                block
+                    ? FieldValue.arrayUnion([targetUid])
+                    : FieldValue.arrayRemove([targetUid]),
+          }, SetOptions(merge: true));
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(block ? 'User blocked' : 'User unblocked'),
-        ),
+        SnackBar(content: Text(block ? 'User blocked' : 'User unblocked')),
       );
     } catch (_) {
       messenger.showSnackBar(
@@ -235,10 +237,7 @@ class ArticleDetailScreen extends StatelessWidget {
               IconButton(
                 tooltip: 'Report article',
                 icon: const Icon(Icons.flag_outlined),
-                onPressed: () => _promptReport(
-                  context,
-                  articleId: articleId,
-                ),
+                onPressed: () => _promptReport(context, articleId: articleId),
               ),
             ],
           ),
@@ -502,15 +501,18 @@ class ArticleDetailScreen extends StatelessWidget {
                                               : '?',
                                         ),
                                       ),
-                                      title: Row(
+                                      title: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(
-                                            child: Text(
-                                              displayName(c.authorName),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                          Text(
+                                            displayName(c.authorName),
+                                            softWrap: true,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
+                                          const SizedBox(height: 2),
                                           Text(
                                             onlyDate(c.createdAt),
                                             style: const TextStyle(
@@ -529,12 +531,15 @@ class ArticleDetailScreen extends StatelessWidget {
                                         children: [
                                           IconButton(
                                             tooltip: 'Report comment',
-                                            icon: const Icon(Icons.flag_outlined),
-                                            onPressed: () => _promptReport(
-                                              context,
-                                              articleId: article.id,
-                                              comment: c,
+                                            icon: const Icon(
+                                              Icons.flag_outlined,
                                             ),
+                                            onPressed:
+                                                () => _promptReport(
+                                                  context,
+                                                  articleId: article.id,
+                                                  comment: c,
+                                                ),
                                           ),
                                           if (isAdmin)
                                             IconButton(
@@ -543,19 +548,21 @@ class ArticleDetailScreen extends StatelessWidget {
                                                 Icons.delete_outline,
                                                 color: Colors.redAccent,
                                               ),
-                                              onPressed: () => _confirmDeleteComment(
-                                                context,
-                                                articleRef,
-                                                c,
-                                              ),
+                                              onPressed:
+                                                  () => _confirmDeleteComment(
+                                                    context,
+                                                    articleRef,
+                                                    c,
+                                                  ),
                                             ),
                                           if (uid != null && uid != c.authorUid)
                                             PopupMenuButton<String>(
-                                              tooltip: blockedUsers.contains(
-                                                    c.authorUid,
-                                                  )
-                                                  ? 'Unblock user'
-                                                  : 'Block user',
+                                              tooltip:
+                                                  blockedUsers.contains(
+                                                        c.authorUid,
+                                                      )
+                                                      ? 'Unblock user'
+                                                      : 'Block user',
                                               onSelected: (value) {
                                                 if (value == 'block') {
                                                   _setBlockStatus(
@@ -571,20 +578,25 @@ class ArticleDetailScreen extends StatelessWidget {
                                                   );
                                                 }
                                               },
-                                              itemBuilder: (_) => [
-                                                if (!blockedUsers.contains(
-                                                  c.authorUid,
-                                                ))
-                                                  const PopupMenuItem(
-                                                    value: 'block',
-                                                    child: Text('Block user'),
-                                                  )
-                                                else
-                                                  const PopupMenuItem(
-                                                    value: 'unblock',
-                                                    child: Text('Unblock user'),
-                                                  ),
-                                              ],
+                                              itemBuilder:
+                                                  (_) => [
+                                                    if (!blockedUsers.contains(
+                                                      c.authorUid,
+                                                    ))
+                                                      const PopupMenuItem(
+                                                        value: 'block',
+                                                        child: Text(
+                                                          'Block user',
+                                                        ),
+                                                      )
+                                                    else
+                                                      const PopupMenuItem(
+                                                        value: 'unblock',
+                                                        child: Text(
+                                                          'Unblock user',
+                                                        ),
+                                                      ),
+                                                  ],
                                             ),
                                         ],
                                       ),
