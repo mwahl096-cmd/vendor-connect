@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_html/src/extension/helpers/image_extension.dart';
 
 import '../config.dart';
 import '../models/article.dart';
@@ -276,12 +278,23 @@ class ArticleDetailScreen extends StatelessWidget {
                 );
               }
 
-              String plain(String html) =>
-                  html.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-              final bodyText =
-                  article.contentHtml.trim().isNotEmpty
-                      ? plain(article.contentHtml)
-                      : article.excerpt;
+              final hasHtml = article.contentHtml.trim().isNotEmpty;
+              String cleanedHtml(String html) {
+                return html
+                    .replaceAll(
+                      RegExp(
+                        r'<p>(?:&nbsp;|\s|<br\s*/?>)*</p>',
+                        caseSensitive: false,
+                      ),
+                      '',
+                    )
+                    .trim();
+              }
+              final htmlBody =
+                  hasHtml ? cleanedHtml(article.contentHtml) : article.excerpt;
+              final useHtml = hasHtml && htmlBody.isNotEmpty;
+              final bodyFontSize =
+                  Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14;
 
               return ListView(
                 padding: const EdgeInsets.all(16),
@@ -336,7 +349,79 @@ class ArticleDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  Text(bodyText, style: Theme.of(context).textTheme.bodyMedium),
+                  if (useHtml)
+                    LayoutBuilder(
+                      builder: (layoutContext, constraints) {
+                        final maxWidth =
+                            constraints.maxWidth.isFinite &&
+                                    constraints.maxWidth > 0
+                                ? constraints.maxWidth
+                                : null;
+                        return Html(
+                          data: htmlBody,
+                          extensions: [
+                            ImageExtension(
+                              builder: (context) {
+                                final src =
+                                    context.attributes['src']?.trim() ?? '';
+                                if (src.isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 8,
+                                    bottom: 12,
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: SizedBox(
+                                      height: 220,
+                                      width: maxWidth,
+                                      child: Image.network(
+                                        src,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (_, __, ___) => Container(
+                                              color: Colors.grey.shade200,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                          style: {
+                            'body': Style(
+                              margin: Margins.zero,
+                              padding: HtmlPaddings.zero,
+                              fontSize: FontSize(bodyFontSize),
+                              lineHeight: LineHeight.number(1.4),
+                              color: Colors.black87,
+                            ),
+                            'p': Style(
+                              margin: Margins.only(bottom: 12),
+                            ),
+                            'img': Style(
+                              margin: Margins.zero,
+                              display: Display.block,
+                            ),
+                            'figure': Style(
+                              margin: Margins.only(bottom: 12),
+                            ),
+                            'figcaption': Style(
+                              color: Colors.black54,
+                              fontSize: FontSize(12),
+                            ),
+                          },
+                        );
+                      },
+                    )
+                  else
+                    Text(
+                      htmlBody,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   const SizedBox(height: 16),
                   if (article.tags.isNotEmpty) ...[
                     Text(
