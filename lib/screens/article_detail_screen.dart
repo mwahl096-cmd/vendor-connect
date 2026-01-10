@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_html/src/extension/helpers/image_extension.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../config.dart';
 import '../models/article.dart';
@@ -15,6 +17,84 @@ import '../utils/role_utils.dart';
 class ArticleDetailScreen extends StatelessWidget {
   final String articleId;
   const ArticleDetailScreen({super.key, required this.articleId});
+
+  static final RegExp _urlRegex = RegExp(
+    r'(https?:\/\/[^\s<]+|www\.[^\s<]+)',
+    caseSensitive: false,
+  );
+  static const HtmlEscape _htmlEscape = HtmlEscape();
+
+  String _decodeHtmlEntities(String input) {
+    return input
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&#160;', ' ')
+        .replaceAll('&#xA0;', ' ')
+        .replaceAll('&#xa0;', ' ')
+        .replaceAll('&#38;', '&')
+        .replaceAll('&#038;', '&')
+        .replaceAll('&#x26;', '&')
+        .replaceAll('&amp;', '&');
+  }
+
+  String _normalizeUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith(RegExp(r'https?://', caseSensitive: false))) {
+      return trimmed;
+    }
+    return 'https://$trimmed';
+  }
+
+  String _linkifyPlainText(String text) {
+    final decoded = _decodeHtmlEntities(text);
+    final buffer = StringBuffer();
+    var lastIndex = 0;
+    for (final match in _urlRegex.allMatches(decoded)) {
+      if (match.start > lastIndex) {
+        buffer.write(
+          _htmlEscape.convert(decoded.substring(lastIndex, match.start)),
+        );
+      }
+      final linkText = match.group(0)!;
+      final href = _normalizeUrl(linkText);
+      if (href.isEmpty) {
+        buffer.write(_htmlEscape.convert(linkText));
+      } else {
+        buffer.write(
+          '<a href="${_htmlEscape.convert(href)}">'
+          '${_htmlEscape.convert(linkText)}'
+          '</a>',
+        );
+      }
+      lastIndex = match.end;
+    }
+    if (lastIndex < decoded.length) {
+      buffer.write(_htmlEscape.convert(decoded.substring(lastIndex)));
+    }
+    return buffer.toString().replaceAll('\n', '<br />');
+  }
+
+  Future<void> _openUrl(BuildContext context, String? rawUrl) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final normalized = _normalizeUrl(rawUrl ?? '');
+    if (normalized.isEmpty) return;
+    final uri = Uri.tryParse(normalized);
+    if (uri == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Invalid link.')),
+      );
+      return;
+    }
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to open link.')),
+      );
+    }
+  }
 
   Future<void> _submitReport(
     BuildContext context, {
@@ -293,8 +373,36 @@ class ArticleDetailScreen extends StatelessWidget {
               final htmlBody =
                   hasHtml ? cleanedHtml(article.contentHtml) : article.excerpt;
               final useHtml = hasHtml && htmlBody.isNotEmpty;
+              final plainTextHtml = _linkifyPlainText(htmlBody);
               final bodyFontSize =
                   Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14;
+              final htmlStyles = {
+                'body': Style(
+                  margin: Margins.zero,
+                  padding: HtmlPaddings.zero,
+                  fontSize: FontSize(bodyFontSize),
+                  lineHeight: LineHeight.number(1.4),
+                  color: Colors.black87,
+                ),
+                'p': Style(
+                  margin: Margins.only(bottom: 12),
+                ),
+                'a': Style(
+                  color: Colors.blue.shade700,
+                  textDecoration: TextDecoration.underline,
+                ),
+                'img': Style(
+                  margin: Margins.zero,
+                  display: Display.block,
+                ),
+                'figure': Style(
+                  margin: Margins.only(bottom: 12),
+                ),
+                'figcaption': Style(
+                  color: Colors.black54,
+                  fontSize: FontSize(12),
+                ),
+              };
 
               return ListView(
                 padding: const EdgeInsets.all(16),
@@ -359,6 +467,9 @@ class ArticleDetailScreen extends StatelessWidget {
                                 : null;
                         return Html(
                           data: htmlBody,
+                          onLinkTap:
+                              (url, attributes, element) =>
+                                  _openUrl(context, url),
                           extensions: [
                             ImageExtension(
                               builder: (context) {
@@ -391,36 +502,17 @@ class ArticleDetailScreen extends StatelessWidget {
                               },
                             ),
                           ],
-                          style: {
-                            'body': Style(
-                              margin: Margins.zero,
-                              padding: HtmlPaddings.zero,
-                              fontSize: FontSize(bodyFontSize),
-                              lineHeight: LineHeight.number(1.4),
-                              color: Colors.black87,
-                            ),
-                            'p': Style(
-                              margin: Margins.only(bottom: 12),
-                            ),
-                            'img': Style(
-                              margin: Margins.zero,
-                              display: Display.block,
-                            ),
-                            'figure': Style(
-                              margin: Margins.only(bottom: 12),
-                            ),
-                            'figcaption': Style(
-                              color: Colors.black54,
-                              fontSize: FontSize(12),
-                            ),
-                          },
+                          style: htmlStyles,
                         );
                       },
                     )
                   else
-                    Text(
-                      htmlBody,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    Html(
+                      data: plainTextHtml,
+                      onLinkTap:
+                          (url, attributes, element) =>
+                              _openUrl(context, url),
+                      style: htmlStyles,
                     ),
                   const SizedBox(height: 16),
                   if (article.tags.isNotEmpty) ...[
