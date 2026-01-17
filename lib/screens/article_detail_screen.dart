@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_html/src/extension/helpers/image_extension.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config.dart';
@@ -14,12 +17,16 @@ import '../models/comment.dart';
 import '../services/firestore_service.dart';
 import '../utils/role_utils.dart';
 
+enum _CommentAction { report, reply, delete, block, unblock }
+
+enum _ReplyDialogAction { save, remove }
+
 class ArticleDetailScreen extends StatelessWidget {
   final String articleId;
   const ArticleDetailScreen({super.key, required this.articleId});
 
   static final RegExp _urlRegex = RegExp(
-    r'(https?:\/\/[^\s<]+|www\.[^\s<]+)',
+    r'(https?:\/\/[^\s<]+|www\.[^\s<]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})',
     caseSensitive: false,
   );
   static const HtmlEscape _htmlEscape = HtmlEscape();
@@ -39,6 +46,16 @@ class ArticleDetailScreen extends StatelessWidget {
   String _normalizeUrl(String url) {
     final trimmed = url.trim();
     if (trimmed.isEmpty) return '';
+    if (RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false).hasMatch(
+      trimmed,
+    )) {
+      return trimmed;
+    }
+    if (trimmed.contains('@') &&
+        !trimmed.contains(' ') &&
+        !trimmed.contains('/')) {
+      return 'mailto:$trimmed';
+    }
     if (trimmed.startsWith(RegExp(r'https?://', caseSensitive: false))) {
       return trimmed;
     }
@@ -74,6 +91,131 @@ class ArticleDetailScreen extends StatelessWidget {
     return buffer.toString().replaceAll('\n', '<br />');
   }
 
+  String _sanitizeFileName(String input) {
+    final normalized =
+        input
+            .trim()
+            .replaceAll(RegExp(r'\s+'), '_')
+            .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '');
+    return normalized.isEmpty ? 'comments_export' : normalized;
+  }
+
+  String _csvEscape(String value) {
+    final raw = value;
+    if (raw.contains('"') || raw.contains(',') || raw.contains('\n')) {
+      return '"${raw.replaceAll('"', '""')}"';
+    }
+    return raw;
+  }
+
+  DateTime? _coerceDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate().toLocal();
+    if (value is DateTime) return value.toLocal();
+    if (value is String) return DateTime.tryParse(value)?.toLocal();
+    if (value is num) {
+      final millis =
+          value > 10000000000 ? value.toDouble() : value.toDouble() * 1000;
+      return DateTime.fromMillisecondsSinceEpoch(
+        millis.round(),
+        isUtc: true,
+      ).toLocal();
+    }
+    return null;
+  }
+
+  Future<void> _exportCommentsCsv(
+    BuildContext context, {
+    required String articleId,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    var progressVisible = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    ).then((_) => progressVisible = false);
+
+    try {
+      final articleSnap =
+          await FirebaseFirestore.instance
+              .collection(AppConfig.articlesCollection)
+              .doc(articleId)
+              .get();
+      final articleTitle =
+          (articleSnap.data()?['title'] ?? '').toString().trim();
+
+      final snap =
+          await FirebaseFirestore.instance
+              .collection(AppConfig.articlesCollection)
+              .doc(articleId)
+              .collection(AppConfig.commentsSubcollection)
+              .get();
+
+      final rows = snap.docs.map((doc) {
+        final data = doc.data();
+        final createdRaw = data['createdAt'] ?? data['createdAtClient'];
+        final createdAt = _coerceDateTime(createdRaw);
+        return {
+          'commentId': doc.id,
+          'articleId': data['articleId']?.toString() ?? articleId,
+          'authorUid': data['authorUid']?.toString() ?? '',
+          'authorName': data['authorName']?.toString() ?? '',
+          'visibleTo': data['visibleTo']?.toString() ?? '',
+          'createdAt': createdAt?.toIso8601String() ?? '',
+          'text': data['text']?.toString() ?? '',
+        };
+      }).toList()
+        ..sort((a, b) => (a['createdAt'] ?? '').compareTo(b['createdAt'] ?? ''));
+
+      final header = [
+        'commentId',
+        'articleId',
+        'authorUid',
+        'authorName',
+        'visibleTo',
+        'createdAt',
+        'text',
+      ];
+      final lines = <String>[header.join(',')];
+      for (final row in rows) {
+        lines.add(
+          header.map((key) => _csvEscape(row[key] ?? '')).join(','),
+        );
+      }
+
+      final label = articleTitle.isNotEmpty ? articleTitle : articleId;
+      final safeTitle = _sanitizeFileName('comments_${articleId}_$label');
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/$safeTitle.csv');
+      await file.writeAsString(lines.join('\n'));
+
+      if (progressVisible && context.mounted) {
+        rootNavigator.pop();
+      }
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/csv', name: '$safeTitle.csv')],
+        text:
+            articleTitle.isNotEmpty
+                ? 'Comments export for "$articleTitle"'
+                : 'Comments export for article $articleId',
+      );
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Comments CSV saved to ${file.path}')),
+      );
+    } catch (e) {
+      if (progressVisible && context.mounted) {
+        rootNavigator.pop();
+      }
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to export comments right now.')),
+      );
+    }
+  }
+
   Future<void> _openUrl(BuildContext context, String? rawUrl) async {
     final messenger = ScaffoldMessenger.of(context);
     final normalized = _normalizeUrl(rawUrl ?? '');
@@ -85,10 +227,20 @@ class ArticleDetailScreen extends StatelessWidget {
       );
       return;
     }
-    final launched = await launchUrl(
+    final useNonBrowser =
+        uri.scheme == 'mailto' ||
+        uri.scheme == 'tel' ||
+        uri.scheme == 'sms';
+    var launched = await launchUrl(
       uri,
-      mode: LaunchMode.externalApplication,
+      mode:
+          useNonBrowser
+              ? LaunchMode.externalNonBrowserApplication
+              : LaunchMode.externalApplication,
     );
+    if (!launched && useNonBrowser) {
+      launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
     if (!launched) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Unable to open link.')),
@@ -278,6 +430,112 @@ class ArticleDetailScreen extends StatelessWidget {
     }
   }
 
+  String _adminDisplayName(
+    Map<String, dynamic>? userData,
+    User? user,
+  ) {
+    final name = (userData?['name'] ?? '').toString().trim();
+    if (name.isNotEmpty) return name;
+    final displayName = (user?.displayName ?? '').toString().trim();
+    if (displayName.isNotEmpty) return displayName;
+    final email = (userData?['email'] ?? user?.email ?? '').toString().trim();
+    if (email.contains('@')) return email.split('@').first;
+    if (email.isNotEmpty) return email;
+    return 'Admin';
+  }
+
+  Future<void> _promptAdminReply(
+    BuildContext context, {
+    required DocumentReference<Map<String, dynamic>> articleRef,
+    required ArticleComment comment,
+    required String adminUid,
+    required String adminName,
+  }) async {
+    final controller = TextEditingController(text: comment.replyText ?? '');
+    String? errorText;
+    final action = await showDialog<_ReplyDialogAction>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(
+                comment.replyText?.trim().isNotEmpty == true
+                    ? 'Edit reply'
+                    : 'Reply to comment',
+              ),
+              content: TextField(
+                controller: controller,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: 'Write a reply...',
+                  errorText: errorText,
+                ),
+              ),
+              actions: [
+                if (comment.replyText?.trim().isNotEmpty == true)
+                  TextButton(
+                    onPressed:
+                        () => Navigator.of(
+                          dialogContext,
+                        ).pop(_ReplyDialogAction.remove),
+                    child: const Text('Remove'),
+                  ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final text = controller.text.trim();
+                    if (text.isEmpty) {
+                      setState(() => errorText = 'Reply required');
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(_ReplyDialogAction.save);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    await Future<void>.delayed(Duration.zero);
+    final replyText = controller.text.trim();
+    controller.dispose();
+
+    if (action == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final replyRef =
+        articleRef.collection(AppConfig.commentsSubcollection).doc(comment.id);
+    try {
+      if (action == _ReplyDialogAction.save) {
+        await replyRef.update({
+          'replyText': replyText,
+          'replyByUid': adminUid,
+          'replyByName': adminName,
+          'replyCreatedAt': FieldValue.serverTimestamp(),
+          'replyCreatedAtClient': Timestamp.fromDate(DateTime.now().toUtc()),
+        });
+      } else if (action == _ReplyDialogAction.remove) {
+        await replyRef.update({
+          'replyText': FieldValue.delete(),
+          'replyByUid': FieldValue.delete(),
+          'replyByName': FieldValue.delete(),
+          'replyCreatedAt': FieldValue.delete(),
+          'replyCreatedAtClient': FieldValue.delete(),
+        });
+      }
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to update reply.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -305,6 +563,8 @@ class ArticleDetailScreen extends StatelessWidget {
         final roleRaw = normalizedRole(userData);
         final isAdmin = roleRaw == 'admin';
         final blockedUsers = _blockedUserIds(userData);
+        final currentUser = FirebaseAuth.instance.currentUser;
+        final adminName = _adminDisplayName(userData, currentUser);
 
         Query<Map<String, dynamic>> commentsQuery = articleRef
             .collection(AppConfig.commentsSubcollection)
@@ -316,6 +576,14 @@ class ArticleDetailScreen extends StatelessWidget {
           appBar: AppBar(
             title: const Text('Article'),
             actions: [
+              if (isAdmin)
+                IconButton(
+                  tooltip: 'Export comments CSV',
+                  icon: const Icon(Icons.download_outlined),
+                  onPressed:
+                      () =>
+                          _exportCommentsCsv(context, articleId: articleId),
+                ),
               IconButton(
                 tooltip: 'Report article',
                 icon: const Icon(Icons.flag_outlined),
@@ -644,6 +912,113 @@ class ArticleDetailScreen extends StatelessWidget {
                           String onlyDate(DateTime d) =>
                               d.toLocal().toString().split(' ').first;
 
+                          PopupMenuButton<_CommentAction> commentMenu(
+                            ArticleComment comment,
+                          ) {
+                            final hasReply =
+                                comment.replyText?.trim().isNotEmpty == true;
+                            final canBlock =
+                                uid != null && uid != comment.authorUid;
+                            final isBlocked =
+                                blockedUsers.contains(comment.authorUid);
+                            return PopupMenuButton<_CommentAction>(
+                              icon: const Icon(Icons.more_horiz),
+                              tooltip: 'Comment actions',
+                              onSelected: (action) async {
+                                switch (action) {
+                                  case _CommentAction.report:
+                                    await _promptReport(
+                                      context,
+                                      articleId: article.id,
+                                      comment: comment,
+                                    );
+                                    break;
+                                  case _CommentAction.reply:
+                                    if (!isAdmin || currentUser == null) {
+                                      return;
+                                    }
+                                    await _promptAdminReply(
+                                      context,
+                                      articleRef: articleRef,
+                                      comment: comment,
+                                      adminUid: currentUser.uid,
+                                      adminName: adminName,
+                                    );
+                                    break;
+                                  case _CommentAction.delete:
+                                    await _confirmDeleteComment(
+                                      context,
+                                      articleRef,
+                                      comment,
+                                    );
+                                    break;
+                                  case _CommentAction.block:
+                                    await _setBlockStatus(
+                                      context,
+                                      targetUid: comment.authorUid,
+                                      block: true,
+                                    );
+                                    break;
+                                  case _CommentAction.unblock:
+                                    await _setBlockStatus(
+                                      context,
+                                      targetUid: comment.authorUid,
+                                      block: false,
+                                    );
+                                    break;
+                                }
+                              },
+                              itemBuilder: (menuContext) {
+                                final items =
+                                    <PopupMenuEntry<_CommentAction>>[
+                                      const PopupMenuItem(
+                                        value: _CommentAction.report,
+                                        child: Text('Report'),
+                                      ),
+                                    ];
+                                if (isAdmin) {
+                                  items.add(
+                                    PopupMenuItem(
+                                      value: _CommentAction.reply,
+                                      child: Text(
+                                        hasReply ? 'Edit reply' : 'Reply',
+                                      ),
+                                    ),
+                                  );
+                                }
+                                if (canBlock) {
+                                  items.add(
+                                    PopupMenuItem(
+                                      value:
+                                          isBlocked
+                                              ? _CommentAction.unblock
+                                              : _CommentAction.block,
+                                      child: Text(
+                                        isBlocked
+                                            ? 'Unblock user'
+                                            : 'Block user',
+                                      ),
+                                    ),
+                                  );
+                                }
+                                if (isAdmin) {
+                                  items.add(
+                                    const PopupMenuItem(
+                                      value: _CommentAction.delete,
+                                      child: Text(
+                                        'Delete comment',
+                                        style: TextStyle(
+                                          color: Colors.redAccent,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return items;
+                              },
+                            );
+                          }
+
                           return Column(
                             children: [
                               for (final c in items)
@@ -657,129 +1032,166 @@ class ArticleDetailScreen extends StatelessWidget {
                                     ),
                                   ),
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                    child: ListTile(
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 6,
+                                    padding: const EdgeInsets.all(12),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundColor: const Color(
+                                            0xFF2BBFD4,
+                                          ).withOpacity(0.15),
+                                          foregroundColor: const Color(
+                                            0xFF2BBFD4,
                                           ),
-                                      leading: CircleAvatar(
-                                        backgroundColor: const Color(
-                                          0xFF2BBFD4,
-                                        ).withOpacity(0.15),
-                                        foregroundColor: const Color(
-                                          0xFF2BBFD4,
+                                          child: Text(
+                                            displayName(c.authorName)
+                                                    .isNotEmpty
+                                                ? displayName(
+                                                  c.authorName,
+                                                )[0].toUpperCase()
+                                                : '?',
+                                          ),
                                         ),
-                                        child: Text(
-                                          displayName(c.authorName).isNotEmpty
-                                              ? displayName(
-                                                c.authorName,
-                                              )[0].toUpperCase()
-                                              : '?',
-                                        ),
-                                      ),
-                                      title: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            displayName(c.authorName),
-                                            softWrap: true,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            onlyDate(c.createdAt),
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.black54,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      subtitle: Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(c.text),
-                                      ),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            tooltip: 'Report comment',
-                                            icon: const Icon(
-                                              Icons.flag_outlined,
-                                            ),
-                                            onPressed:
-                                                () => _promptReport(
-                                                  context,
-                                                  articleId: article.id,
-                                                  comment: c,
-                                                ),
-                                          ),
-                                          if (isAdmin)
-                                            IconButton(
-                                              tooltip: 'Delete comment',
-                                              icon: const Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.redAccent,
-                                              ),
-                                              onPressed:
-                                                  () => _confirmDeleteComment(
-                                                    context,
-                                                    articleRef,
-                                                    c,
-                                                  ),
-                                            ),
-                                          if (uid != null && uid != c.authorUid)
-                                            PopupMenuButton<String>(
-                                              tooltip:
-                                                  blockedUsers.contains(
-                                                        c.authorUid,
-                                                      )
-                                                      ? 'Unblock user'
-                                                      : 'Block user',
-                                              onSelected: (value) {
-                                                if (value == 'block') {
-                                                  _setBlockStatus(
-                                                    context,
-                                                    targetUid: c.authorUid,
-                                                    block: true,
-                                                  );
-                                                } else if (value == 'unblock') {
-                                                  _setBlockStatus(
-                                                    context,
-                                                    targetUid: c.authorUid,
-                                                    block: false,
-                                                  );
-                                                }
-                                              },
-                                              itemBuilder:
-                                                  (_) => [
-                                                    if (!blockedUsers.contains(
-                                                      c.authorUid,
-                                                    ))
-                                                      const PopupMenuItem(
-                                                        value: 'block',
-                                                        child: Text(
-                                                          'Block user',
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          displayName(
+                                                            c.authorName,
+                                                          ),
+                                                          softWrap: true,
+                                                          style:
+                                                              const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
                                                         ),
-                                                      )
-                                                    else
-                                                      const PopupMenuItem(
-                                                        value: 'unblock',
-                                                        child: Text(
-                                                          'Unblock user',
+                                                        const SizedBox(
+                                                          height: 2,
+                                                        ),
+                                                        Text(
+                                                          onlyDate(
+                                                            c.createdAt,
+                                                          ),
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 12,
+                                                                color: Colors
+                                                                    .black54,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  commentMenu(c),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                c.text,
+                                                softWrap: true,
+                                                style: const TextStyle(
+                                                  height: 1.35,
+                                                ),
+                                              ),
+                                              if (c.replyText
+                                                      ?.trim()
+                                                      .isNotEmpty ==
+                                                  true) ...[
+                                                const SizedBox(height: 10),
+                                                Container(
+                                                  width: double.infinity,
+                                                  margin: const EdgeInsets.only(
+                                                    left: 12,
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                    left: 10,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    border: Border(
+                                                      left: BorderSide(
+                                                        color:
+                                                            Colors
+                                                                .grey
+                                                                .shade400,
+                                                        width: 2,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: Text(
+                                                              (c.replyByName ??
+                                                                          'Admin')
+                                                                      .trim()
+                                                                      .isNotEmpty
+                                                                  ? (c.replyByName ??
+                                                                          'Admin')
+                                                                      .trim()
+                                                                  : 'Admin',
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          if (c.replyCreatedAt !=
+                                                              null)
+                                                            Text(
+                                                              onlyDate(
+                                                                c.replyCreatedAt!,
+                                                              ),
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        12,
+                                                                    color: Colors
+                                                                        .black54,
+                                                                  ),
+                                                            ),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        c.replyText ?? '',
+                                                        softWrap: true,
+                                                        style:
+                                                            const TextStyle(
+                                                          height: 1.35,
                                                         ),
                                                       ),
-                                                  ],
-                                            ),
-                                        ],
-                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),

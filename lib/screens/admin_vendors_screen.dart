@@ -61,6 +61,8 @@ class _VendorListState extends State<_VendorList> {
   final Set<String> _deletingIds = <String>{};
   final VendorAdminService _adminService = VendorAdminService();
   final Set<String> _inFlightIds = <String>{};
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   bool _isBusy(String vendorId) =>
       _deletingIds.contains(vendorId) || _inFlightIds.contains(vendorId);
@@ -69,6 +71,69 @@ class _VendorListState extends State<_VendorList> {
     if (_cachedDocs == null) return;
     _cachedDocs =
         _cachedDocs!.where((doc) => doc.id != vendorId).toList(growable: false);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      final next = _searchController.text.trim().toLowerCase();
+      if (next == _searchQuery) return;
+      setState(() {
+        _searchQuery = next;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _applySearch(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    if (_searchQuery.isEmpty) return docs;
+    return docs.where((doc) {
+      final data = doc.data();
+      final name = (data['name'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery);
+    }).toList(growable: false);
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Search vendors by name',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon:
+              _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => _searchController.clear(),
+                  ),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF2BBFD4), width: 2),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _updateVendorFields({
@@ -261,19 +326,28 @@ class _VendorListState extends State<_VendorList> {
             .where((doc) => !_deletingIds.contains(doc.id) && !_inFlightIds.contains(doc.id))
             .toList(growable: false);
 
-        if (visibleDocs.isEmpty) {
-          return Center(
-            child: Text(
-              widget.pending ? 'No pending vendors' : 'No active vendors',
-            ),
+        final searchedDocs =
+            widget.pending ? visibleDocs : _applySearch(visibleDocs);
+
+        if (searchedDocs.isEmpty) {
+          final message =
+              (!widget.pending && _searchQuery.isNotEmpty)
+                  ? 'No vendors match "${_searchController.text.trim()}"'
+                  : (widget.pending
+                      ? 'No pending vendors'
+                      : 'No active vendors');
+          final empty = Center(child: Text(message));
+          if (widget.pending) return empty;
+          return Column(
+            children: [_buildSearchBar(), Expanded(child: empty)],
           );
         }
 
-        return ListView.builder(
+        final list = ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: visibleDocs.length,
+          itemCount: searchedDocs.length,
           itemBuilder: (context, i) {
-            final d = visibleDocs[i];
+            final d = searchedDocs[i];
             final m = d.data();
             final busy = _isBusy(d.id);
             final deleting = _deletingIds.contains(d.id);
@@ -411,6 +485,10 @@ class _VendorListState extends State<_VendorList> {
               ),
             );
           },
+        );
+        if (widget.pending) return list;
+        return Column(
+          children: [_buildSearchBar(), Expanded(child: list)],
         );
       },
     );

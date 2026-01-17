@@ -36,6 +36,13 @@ service cloud.firestore {
         isTruthy(data.approved) &&
         isFalsy(data.disabled);
     }
+    function replyFieldsUnchanged() {
+      return request.resource.data.replyText == resource.data.replyText &&
+        request.resource.data.replyByUid == resource.data.replyByUid &&
+        request.resource.data.replyByName == resource.data.replyByName &&
+        request.resource.data.replyCreatedAt == resource.data.replyCreatedAt &&
+        request.resource.data.replyCreatedAtClient == resource.data.replyCreatedAtClient;
+    }
 
     match /users/{uid} {
       allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin());
@@ -54,7 +61,11 @@ service cloud.firestore {
       allow list: if true;
       allow get: if true;
       allow create: if isSignedIn();
-      allow update, delete: if isAdmin() ||
+      allow update: if isAdmin() ||
+        (isSignedIn() &&
+          request.auth.uid == resource.data.authorUid &&
+          replyFieldsUnchanged());
+      allow delete: if isAdmin() ||
         (isSignedIn() && request.auth.uid == resource.data.authorUid);
     }
 
