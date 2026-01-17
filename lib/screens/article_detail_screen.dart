@@ -186,24 +186,70 @@ class ArticleDetailScreen extends StatelessWidget {
 
       final label = articleTitle.isNotEmpty ? articleTitle : articleId;
       final safeTitle = _sanitizeFileName('comments_${articleId}_$label');
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/$safeTitle.csv');
-      await file.writeAsString(lines.join('\n'));
+      final csvContents = lines.join('\n');
+      File? file;
+      String savedLabel = '';
+
+      if (Platform.isAndroid) {
+        final downloadDir = Directory('/storage/emulated/0/Download');
+        try {
+          final path = '${downloadDir.path}/$safeTitle.csv';
+          file = File(path);
+          await file.writeAsString(csvContents);
+          savedLabel = 'Downloads/$safeTitle.csv';
+        } catch (_) {
+          file = null;
+        }
+      }
+
+      if (file == null) {
+        if (Platform.isAndroid) {
+          final dir = await getExternalStorageDirectory();
+          if (dir != null) {
+            final path = '${dir.path}/$safeTitle.csv';
+            file = File(path);
+            await file.writeAsString(csvContents);
+            savedLabel = path;
+          }
+        }
+      }
+
+      if (file == null) {
+        final dir = await getApplicationDocumentsDirectory();
+        final path = '${dir.path}/$safeTitle.csv';
+        file = File(path);
+        await file.writeAsString(csvContents);
+        if (Platform.isIOS) {
+          savedLabel = 'Files app > On My iPhone';
+        } else if (savedLabel.isEmpty) {
+          savedLabel = path;
+        }
+      }
 
       if (progressVisible && context.mounted) {
         rootNavigator.pop();
       }
 
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/csv', name: '$safeTitle.csv')],
-        text:
-            articleTitle.isNotEmpty
-                ? 'Comments export for "$articleTitle"'
-                : 'Comments export for article $articleId',
-      );
       if (!context.mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Comments CSV saved to ${file.path}')),
+        SnackBar(
+          content:
+              savedLabel.isNotEmpty
+                  ? Text('Comments CSV saved to $savedLabel')
+                  : const Text('Comments CSV saved'),
+          action: SnackBarAction(
+            label: 'Share',
+            onPressed: () {
+              Share.shareXFiles(
+                [XFile(file!.path, mimeType: 'text/csv', name: '$safeTitle.csv')],
+                text:
+                    articleTitle.isNotEmpty
+                        ? 'Comments export for "$articleTitle"'
+                        : 'Comments export for article $articleId',
+              );
+            },
+          ),
+        ),
       );
     } catch (e) {
       if (progressVisible && context.mounted) {
