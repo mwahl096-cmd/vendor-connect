@@ -88,6 +88,18 @@ function fetchText(url: string): Promise<string> {
   });
 }
 
+function normalizedText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function chunkArray<T>(items: T[], size = 500): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 const WP_BASE = process.env.WP_BASE_URL || "https://vendorconnectapp.com";
 
 export const wpWebhook = onRequest(async (req, res) => {
@@ -354,6 +366,127 @@ export const onUserCreated = onDocumentCreated("users/{uid}", async (event) => {
     logger.error("Failed to notify admins about new user", e as any);
   }
 });
+
+// Notify the comment author when an admin adds or edits a reply.
+export const onCommentReplyUpdated = onDocumentUpdated(
+  "articles/{articleId}/comments/{commentId}",
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+
+    const previousReply = normalizedText(before.replyText);
+    const currentReply = normalizedText(after.replyText);
+    if (currentReply.length === 0 || previousReply === currentReply) {
+      return;
+    }
+
+    const replyByUid = normalizedText(after.replyByUid);
+    const authorUid = normalizedText(after.authorUid);
+    if (!replyByUid || !authorUid || replyByUid === authorUid) {
+      return;
+    }
+
+    // Defensive guard: only send for replies authored by admins.
+    const replierDoc = await admin.firestore().doc(`users/${replyByUid}`).get();
+    const replierRole = normalizedText(replierDoc.get("role")).toLowerCase();
+    if (replierRole !== "admin") {
+      logger.info("Skipping reply notification because replier is not admin", {
+        articleId: event.params.articleId,
+        commentId: event.params.commentId,
+        replyByUid,
+      });
+      return;
+    }
+
+    const tokensSnap = await admin
+      .firestore()
+      .collection("fcmTokens")
+      .where("uid", "==", authorUid)
+      .where("active", "==", true)
+      .get();
+    if (tokensSnap.empty) {
+      logger.info("No active tokens for comment author", {
+        articleId: event.params.articleId,
+        commentId: event.params.commentId,
+        authorUid,
+      });
+      return;
+    }
+
+    const tokens = tokensSnap.docs.map((doc) => doc.id).filter(Boolean);
+    if (tokens.length === 0) return;
+
+    let articleTitle = "";
+    try {
+      const articleSnap = await admin
+        .firestore()
+        .doc(`articles/${event.params.articleId}`)
+        .get();
+      articleTitle = normalizedText(articleSnap.get("title"));
+    } catch (err) {
+      logger.warn("Unable to load article title for reply notification", err as any);
+    }
+
+    const title = "Admin replied to your comment";
+    const body = articleTitle
+      ? `On \"${articleTitle}\"`
+      : "Open the app to read the reply.";
+    const staleTokens = new Set<string>();
+
+    for (const tokenChunk of chunkArray(tokens)) {
+      try {
+        const response = await admin.messaging().sendEachForMulticast({
+          tokens: tokenChunk,
+          notification: { title, body },
+          data: {
+            type: "comment_reply",
+            articleId: String(event.params.articleId),
+            commentId: String(event.params.commentId),
+            replyByUid,
+          },
+        });
+
+        response.responses.forEach((item, index) => {
+          if (item.success) return;
+          const code = item.error?.code ?? "";
+          if (
+            code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-argument"
+          ) {
+            const staleToken = tokenChunk[index];
+            if (staleToken) staleTokens.add(staleToken);
+          }
+        });
+      } catch (err) {
+        logger.error("Failed sending comment reply notification chunk", err as any);
+      }
+    }
+
+    if (staleTokens.size > 0) {
+      const batch = admin.firestore().batch();
+      for (const token of staleTokens) {
+        batch.set(
+          admin.firestore().collection("fcmTokens").doc(token),
+          {
+            active: false,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+      await batch.commit();
+    }
+
+    logger.info("Comment reply notification processed", {
+      articleId: event.params.articleId,
+      commentId: event.params.commentId,
+      authorUid,
+      tokenCount: tokens.length,
+      staleTokenCount: staleTokens.size,
+    });
+  }
+);
 
 // Email user when approved switches from false -> true
 export const onUserApproved = onDocumentUpdated("users/{uid}", async (event) => {
