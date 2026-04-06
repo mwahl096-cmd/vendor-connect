@@ -11,6 +11,7 @@ class AppConfig {
   static const String articlesCollection = 'articles';
   static const String commentsSubcollection = 'comments';
   static const String readsCollection = 'reads';
+  static const String loyaltyPartnersCollection = 'loyaltyPartners';
 
   // Notification topic for new articles
   static const String articlesTopic = 'articles';

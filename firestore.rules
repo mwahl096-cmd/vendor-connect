@@ -80,6 +80,13 @@ service cloud.firestore {
         (isSignedIn() && request.resource.data.uid == request.auth.uid);
     }
 
+    match /loyaltyPartners/{partnerId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || isActiveVendor(currentUserData())
+      );
+      allow create, update, delete: if isAdmin();
+    }
+
     match /fcmTokens/{tokenId} {
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && (

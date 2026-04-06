@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
@@ -8,6 +8,7 @@ import '../utils/role_utils.dart';
 import 'manage_articles_screen.dart';
 import 'admin_vendors_screen.dart';
 import 'new_comments_screen.dart';
+import 'manage_loyalty_benefits_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -21,13 +22,14 @@ class AdminDashboardScreen extends StatelessWidget {
       .collection(AppConfig.usersCollection)
       .snapshots()
       .map(
-        (s) => s.docs.where((doc) {
-          final data = doc.data();
-          final role = normalizedRole(data);
-          final approved = truthy(data['approved']);
-          final disabled = truthy(data['disabled']);
-          return role == 'vendor' && approved && !disabled;
-        }).length,
+        (s) =>
+            s.docs.where((doc) {
+              final data = doc.data();
+              final role = normalizedRole(data);
+              final approved = truthy(data['approved']);
+              final disabled = truthy(data['disabled']);
+              return role == 'vendor' && approved && !disabled;
+            }).length,
       );
 
   Stream<int> _countComments24h() {
@@ -48,6 +50,11 @@ class AdminDashboardScreen extends StatelessWidget {
           }).length;
         });
   }
+
+  Stream<int> _countLoyaltyBenefits() => FirebaseFirestore.instance
+      .collection(AppConfig.loyaltyPartnersCollection)
+      .snapshots()
+      .map((s) => s.size);
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +87,18 @@ class AdminDashboardScreen extends StatelessWidget {
         onTap:
             () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const NewCommentsScreen()),
+            ),
+      ),
+      _StatCard(
+        title: 'Loyalty Benefits',
+        color: const Color(0xFF3DB572),
+        icon: Icons.card_membership_outlined,
+        stream: _countLoyaltyBenefits(),
+        onTap:
+            () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ManageLoyaltyBenefitsScreen(),
+              ),
             ),
       ),
     ];
@@ -205,4 +224,3 @@ class _StatCard extends StatelessWidget {
 }
 
 // Panels removed per request; navigation happens via stat cards
-
