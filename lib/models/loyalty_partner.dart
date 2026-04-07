@@ -50,7 +50,7 @@ class LoyaltyPartner {
       city: (data['city'] ?? '').toString(),
       state: (data['state'] ?? '').toString(),
       zipCode: (data['zipCode'] ?? data['zip'] ?? '').toString(),
-      phone: (data['phone'] ?? '').toString(),
+      phone: _formatUsPhone((data['phone'] ?? '').toString()),
       email: (data['email'] ?? '').toString(),
       website: (data['website'] ?? '').toString(),
       offer: (data['offer'] ?? '').toString(),
@@ -154,6 +154,17 @@ class LoyaltyPartner {
   static String _normalizeOfferUnit(dynamic raw) {
     final value = (raw ?? '').toString().trim();
     return value == '%' ? '%' : '\$';
+  }
+
+  static String _formatUsPhone(String input) {
+    final digits = input.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
+    if (limited.length <= 3) return limited;
+    if (limited.length <= 6) {
+      return '(${limited.substring(0, 3)})${limited.substring(3)}';
+    }
+    return '(${limited.substring(0, 3)})${limited.substring(3, 6)}-${limited.substring(6)}';
   }
 
   static List<String> _parseStringList(dynamic raw) {

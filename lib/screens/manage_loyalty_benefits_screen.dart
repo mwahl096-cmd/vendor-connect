@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
@@ -298,7 +299,7 @@ class _LoyaltyBenefitEditorState extends State<_LoyaltyBenefitEditor> {
     text: widget.partner?.zipCode ?? '',
   );
   late final TextEditingController _phoneController = TextEditingController(
-    text: widget.partner?.phone ?? '',
+    text: _formatUsPhone(widget.partner?.phone ?? ''),
   );
   late final TextEditingController _emailController = TextEditingController(
     text: widget.partner?.email ?? '',
@@ -398,7 +399,7 @@ class _LoyaltyBenefitEditorState extends State<_LoyaltyBenefitEditor> {
         city: _cityController.text.trim(),
         state: _stateController.text.trim(),
         zipCode: _zipController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: _formatUsPhone(_phoneController.text.trim()),
         email: _emailController.text.trim(),
         website: _websiteController.text.trim(),
         offerDescription: _offerDescriptionController.text.trim(),
@@ -754,6 +755,18 @@ class _LoyaltyBenefitEditorState extends State<_LoyaltyBenefitEditor> {
                   ),
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    _UsPhoneTextInputFormatter(),
+                  ],
+                  validator: (value) {
+                    final digits = _digitsOnly(value ?? '');
+                    if (digits.isEmpty) return null;
+                    if (digits.length != 10) {
+                      return 'Use format (xxx)xxx-xxxx';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -857,4 +870,31 @@ class _VendorOption {
     required this.email,
     required this.businessName,
   });
+}
+
+String _digitsOnly(String input) => input.replaceAll(RegExp(r'\D'), '');
+
+String _formatUsPhone(String input) {
+  final digits = _digitsOnly(input);
+  if (digits.isEmpty) return '';
+  final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
+  if (limited.length <= 3) return limited;
+  if (limited.length <= 6) {
+    return '(${limited.substring(0, 3)})${limited.substring(3)}';
+  }
+  return '(${limited.substring(0, 3)})${limited.substring(3, 6)}-${limited.substring(6)}';
+}
+
+class _UsPhoneTextInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final formatted = _formatUsPhone(newValue.text);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
 }

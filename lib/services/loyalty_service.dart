@@ -60,7 +60,7 @@ class LoyaltyService {
       'city': city.trim(),
       'state': state.trim(),
       'zipCode': zipCode.trim(),
-      'phone': phone.trim(),
+      'phone': _formatUsPhone(phone),
       'email': email.trim(),
       'website': website.trim(),
       'offer': headline,
@@ -91,5 +91,16 @@ class LoyaltyService {
     final sortOrder = a.sortOrder.compareTo(b.sortOrder);
     if (sortOrder != 0) return sortOrder;
     return a.businessName.toLowerCase().compareTo(b.businessName.toLowerCase());
+  }
+
+  String _formatUsPhone(String input) {
+    final digits = input.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return '';
+    final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
+    if (limited.length <= 3) return limited;
+    if (limited.length <= 6) {
+      return '(${limited.substring(0, 3)})${limited.substring(3)}';
+    }
+    return '(${limited.substring(0, 3)})${limited.substring(3, 6)}-${limited.substring(6)}';
   }
 }

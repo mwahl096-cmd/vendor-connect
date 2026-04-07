@@ -41,7 +41,7 @@ class _LoyaltyScreenState extends State<LoyaltyScreen> {
   }
 
   Future<void> _openPhone(String phone) async {
-    final digits = phone.trim();
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return;
     final uri = Uri.parse('tel:$digits');
     await _launchExternal(uri, fallbackMessage: 'Unable to open dialer.');
