@@ -101,6 +101,48 @@ function chunkArray<T>(items: T[], size = 500): T[][] {
 }
 
 const WP_BASE = process.env.WP_BASE_URL || "https://vendorconnectapp.com";
+const ADMINS_TOPIC = "articles-admins";
+
+function normalizedRole(data: FirebaseFirestore.DocumentData | undefined): string {
+  if (!data) return "";
+  const raw =
+    data.role ??
+    data.Role ??
+    data.userRole ??
+    data.UserRole ??
+    "";
+  return normalizedText(raw).toLowerCase();
+}
+
+function fallbackDisplayName(
+  data: FirebaseFirestore.DocumentData | undefined,
+  fallback = "Someone"
+): string {
+  const explicitName = normalizedText(data?.name);
+  if (explicitName) return explicitName;
+  const username = normalizedText(data?.username);
+  if (username) return username;
+  const email = normalizedText(data?.email);
+  if (email.includes("@")) return email.split("@")[0];
+  if (email) return email;
+  return fallback;
+}
+
+function preview(value: string, maxLength = 110): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength - 1)}…`;
+}
+
+async function getArticleTitle(articleId: string): Promise<string> {
+  try {
+    const articleSnap = await admin.firestore().doc(`articles/${articleId}`).get();
+    return normalizedText(articleSnap.get("title"));
+  } catch (err) {
+    logger.warn("Unable to load article title", err as any);
+    return "";
+  }
+}
 
 export const wpWebhook = onRequest(async (req, res) => {
   if (req.method !== "POST") {
@@ -355,7 +397,7 @@ export const onUserCreated = onDocumentCreated("users/{uid}", async (event) => {
   if (!data) return;
   try {
     await admin.messaging().send({
-      topic: "articles-admins", // admins topic suffix
+      topic: ADMINS_TOPIC, // admins topic suffix
       notification: {
         title: "New Vendor Registration",
         body: `${data.name || data.email || "Vendor"} requested access`,
@@ -367,7 +409,51 @@ export const onUserCreated = onDocumentCreated("users/{uid}", async (event) => {
   }
 });
 
-// Notify the comment author when an admin adds or edits a reply.
+// Notify admins when a vendor adds a new comment on an article.
+export const onArticleCommentCreated = onDocumentCreated(
+  "articles/{articleId}/comments/{commentId}",
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const articleId = String(event.params.articleId);
+    const commentId = String(event.params.commentId);
+    const authorUid = normalizedText(data.authorUid);
+    const authorName = normalizedText(data.authorName) || "Someone";
+    const commentPreview = preview(normalizedText(data.text), 90);
+    const articleTitle = await getArticleTitle(articleId);
+
+    const title = `${authorName} commented`;
+    const body = articleTitle
+      ? commentPreview
+        ? `On "${articleTitle}": ${commentPreview}`
+        : `On "${articleTitle}"`
+      : (commentPreview || "Open the app to review the comment.");
+
+    try {
+      await admin.messaging().send({
+        topic: ADMINS_TOPIC,
+        notification: { title, body },
+        data: {
+          type: "article_comment",
+          articleId,
+          commentId,
+          authorUid,
+          authorName,
+        },
+      });
+      logger.info("Admin comment notification sent", {
+        articleId,
+        commentId,
+        authorUid,
+      });
+    } catch (err) {
+      logger.error("Failed to send admin comment notification", err as any);
+    }
+  }
+);
+
+// Notify the comment author and admins when a reply is added or edited.
 export const onCommentReplyUpdated = onDocumentUpdated(
   "articles/{articleId}/comments/{commentId}",
   async (event) => {
@@ -387,17 +473,17 @@ export const onCommentReplyUpdated = onDocumentUpdated(
       return;
     }
 
-    // Defensive guard: only send for replies authored by admins.
+    const articleId = String(event.params.articleId);
+    const commentId = String(event.params.commentId);
+    const commentAuthorName = normalizedText(after.authorName) || "a vendor";
+    const replyPreview = preview(currentReply, 90);
+
     const replierDoc = await admin.firestore().doc(`users/${replyByUid}`).get();
-    const replierRole = normalizedText(replierDoc.get("role")).toLowerCase();
-    if (replierRole !== "admin") {
-      logger.info("Skipping reply notification because replier is not admin", {
-        articleId: event.params.articleId,
-        commentId: event.params.commentId,
-        replyByUid,
-      });
-      return;
-    }
+    const replierData = replierDoc.data();
+    const replierRole = normalizedRole(replierData);
+    const replierName =
+      normalizedText(after.replyByName) ||
+      fallbackDisplayName(replierData, "Someone");
 
     const tokensSnap = await admin
       .firestore()
@@ -407,8 +493,8 @@ export const onCommentReplyUpdated = onDocumentUpdated(
       .get();
     if (tokensSnap.empty) {
       logger.info("No active tokens for comment author", {
-        articleId: event.params.articleId,
-        commentId: event.params.commentId,
+        articleId,
+        commentId,
         authorUid,
       });
       return;
@@ -417,21 +503,13 @@ export const onCommentReplyUpdated = onDocumentUpdated(
     const tokens = tokensSnap.docs.map((doc) => doc.id).filter(Boolean);
     if (tokens.length === 0) return;
 
-    let articleTitle = "";
-    try {
-      const articleSnap = await admin
-        .firestore()
-        .doc(`articles/${event.params.articleId}`)
-        .get();
-      articleTitle = normalizedText(articleSnap.get("title"));
-    } catch (err) {
-      logger.warn("Unable to load article title for reply notification", err as any);
-    }
-
-    const title = "Admin replied to your comment";
+    const articleTitle = await getArticleTitle(articleId);
+    const title = `${replierName} replied to your comment`;
     const body = articleTitle
-      ? `On \"${articleTitle}\"`
-      : "Open the app to read the reply.";
+      ? replyPreview
+        ? `On "${articleTitle}": ${replyPreview}`
+        : `On "${articleTitle}"`
+      : (replyPreview || "Open the app to read the reply.");
     const staleTokens = new Set<string>();
 
     for (const tokenChunk of chunkArray(tokens)) {
@@ -441,9 +519,10 @@ export const onCommentReplyUpdated = onDocumentUpdated(
           notification: { title, body },
           data: {
             type: "comment_reply",
-            articleId: String(event.params.articleId),
-            commentId: String(event.params.commentId),
+            articleId,
+            commentId,
             replyByUid,
+            replyByName: replierName,
           },
         });
 
@@ -478,12 +557,39 @@ export const onCommentReplyUpdated = onDocumentUpdated(
       await batch.commit();
     }
 
+    // Also notify admins about the reply event for moderation visibility.
+    try {
+      const adminTitle = `${replierName} replied to a comment`;
+      const adminBody = articleTitle
+        ? `${commentAuthorName} on "${articleTitle}"`
+        : `${commentAuthorName} received a reply`;
+      await admin.messaging().send({
+        topic: ADMINS_TOPIC,
+        notification: {
+          title: adminTitle,
+          body: adminBody,
+        },
+        data: {
+          type: "comment_reply_admin",
+          articleId,
+          commentId,
+          replyByUid,
+          replyByRole: replierRole,
+          replyByName: replierName,
+          authorUid,
+        },
+      });
+    } catch (err) {
+      logger.error("Failed sending admin reply notification", err as any);
+    }
+
     logger.info("Comment reply notification processed", {
-      articleId: event.params.articleId,
-      commentId: event.params.commentId,
+      articleId,
+      commentId,
       authorUid,
       tokenCount: tokens.length,
       staleTokenCount: staleTokens.size,
+      replyByUid,
     });
   }
 );

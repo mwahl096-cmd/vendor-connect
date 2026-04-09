@@ -373,46 +373,58 @@ class _LoyaltyCard extends StatelessWidget {
               left: 24,
               right: 24,
               bottom: 10,
-              child: Center(
-                child: Stack(
-                  children: [
-                    Text(
-                      name.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
-                        foreground:
-                            Paint()
-                              ..style = PaintingStyle.stroke
-                              ..strokeWidth = 2
-                              ..color = Colors.white.withOpacity(0.7),
-                      ),
-                    ),
-                    Text(
-                      name.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
-                        color: Color(0xFF222222),
-                        shadows: [
-                          Shadow(
-                            color: Color(0x55000000),
-                            offset: Offset(0, 1),
-                            blurRadius: 2,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final responsiveSize = (constraints.maxWidth * 0.12).clamp(
+                    14.0,
+                    22.0,
+                  );
+                  final overlayText = name.toUpperCase();
+                  return SizedBox(
+                    width: double.infinity,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.center,
+                      child: Stack(
+                        children: [
+                          Text(
+                            overlayText,
+                            textScaler: TextScaler.noScaling,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: responsiveSize,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                              foreground:
+                                  Paint()
+                                    ..style = PaintingStyle.stroke
+                                    ..strokeWidth = 2
+                                    ..color = Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                          Text(
+                            overlayText,
+                            textScaler: TextScaler.noScaling,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: responsiveSize,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                              color: const Color(0xFF222222),
+                              shadows: const [
+                                Shadow(
+                                  color: Color(0x55000000),
+                                  offset: Offset(0, 1),
+                                  blurRadius: 2,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ],

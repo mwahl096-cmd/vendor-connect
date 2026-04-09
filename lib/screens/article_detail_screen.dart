@@ -46,9 +46,10 @@ class ArticleDetailScreen extends StatelessWidget {
   String _normalizeUrl(String url) {
     final trimmed = url.trim();
     if (trimmed.isEmpty) return '';
-    if (RegExp(r'^[a-z][a-z0-9+.-]*:', caseSensitive: false).hasMatch(
-      trimmed,
-    )) {
+    if (RegExp(
+      r'^[a-z][a-z0-9+.-]*:',
+      caseSensitive: false,
+    ).hasMatch(trimmed)) {
       return trimmed;
     }
     if (trimmed.contains('@') &&
@@ -92,11 +93,10 @@ class ArticleDetailScreen extends StatelessWidget {
   }
 
   String _sanitizeFileName(String input) {
-    final normalized =
-        input
-            .trim()
-            .replaceAll(RegExp(r'\s+'), '_')
-            .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '');
+    final normalized = input
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '_')
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '');
     return normalized.isEmpty ? 'comments_export' : normalized;
   }
 
@@ -152,21 +152,24 @@ class ArticleDetailScreen extends StatelessWidget {
               .collection(AppConfig.commentsSubcollection)
               .get();
 
-      final rows = snap.docs.map((doc) {
-        final data = doc.data();
-        final createdRaw = data['createdAt'] ?? data['createdAtClient'];
-        final createdAt = _coerceDateTime(createdRaw);
-        return {
-          'commentId': doc.id,
-          'articleId': data['articleId']?.toString() ?? articleId,
-          'authorUid': data['authorUid']?.toString() ?? '',
-          'authorName': data['authorName']?.toString() ?? '',
-          'visibleTo': data['visibleTo']?.toString() ?? '',
-          'createdAt': createdAt?.toIso8601String() ?? '',
-          'text': data['text']?.toString() ?? '',
-        };
-      }).toList()
-        ..sort((a, b) => (a['createdAt'] ?? '').compareTo(b['createdAt'] ?? ''));
+      final rows =
+          snap.docs.map((doc) {
+              final data = doc.data();
+              final createdRaw = data['createdAt'] ?? data['createdAtClient'];
+              final createdAt = _coerceDateTime(createdRaw);
+              return {
+                'commentId': doc.id,
+                'articleId': data['articleId']?.toString() ?? articleId,
+                'authorUid': data['authorUid']?.toString() ?? '',
+                'authorName': data['authorName']?.toString() ?? '',
+                'visibleTo': data['visibleTo']?.toString() ?? '',
+                'createdAt': createdAt?.toIso8601String() ?? '',
+                'text': data['text']?.toString() ?? '',
+              };
+            }).toList()
+            ..sort(
+              (a, b) => (a['createdAt'] ?? '').compareTo(b['createdAt'] ?? ''),
+            );
 
       final header = [
         'commentId',
@@ -179,9 +182,7 @@ class ArticleDetailScreen extends StatelessWidget {
       ];
       final lines = <String>[header.join(',')];
       for (final row in rows) {
-        lines.add(
-          header.map((key) => _csvEscape(row[key] ?? '')).join(','),
-        );
+        lines.add(header.map((key) => _csvEscape(row[key] ?? '')).join(','));
       }
 
       final label = articleTitle.isNotEmpty ? articleTitle : articleId;
@@ -241,7 +242,13 @@ class ArticleDetailScreen extends StatelessWidget {
             label: 'Share',
             onPressed: () {
               Share.shareXFiles(
-                [XFile(file!.path, mimeType: 'text/csv', name: '$safeTitle.csv')],
+                [
+                  XFile(
+                    file!.path,
+                    mimeType: 'text/csv',
+                    name: '$safeTitle.csv',
+                  ),
+                ],
                 text:
                     articleTitle.isNotEmpty
                         ? 'Comments export for "$articleTitle"'
@@ -268,15 +275,11 @@ class ArticleDetailScreen extends StatelessWidget {
     if (normalized.isEmpty) return;
     final uri = Uri.tryParse(normalized);
     if (uri == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Invalid link.')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Invalid link.')));
       return;
     }
     final useNonBrowser =
-        uri.scheme == 'mailto' ||
-        uri.scheme == 'tel' ||
-        uri.scheme == 'sms';
+        uri.scheme == 'mailto' || uri.scheme == 'tel' || uri.scheme == 'sms';
     var launched = await launchUrl(
       uri,
       mode:
@@ -476,10 +479,7 @@ class ArticleDetailScreen extends StatelessWidget {
     }
   }
 
-  String _adminDisplayName(
-    Map<String, dynamic>? userData,
-    User? user,
-  ) {
+  String _adminDisplayName(Map<String, dynamic>? userData, User? user) {
     final name = (userData?['name'] ?? '').toString().trim();
     if (name.isNotEmpty) return name;
     final displayName = (user?.displayName ?? '').toString().trim();
@@ -555,8 +555,9 @@ class ArticleDetailScreen extends StatelessWidget {
     if (action == null) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final replyRef =
-        articleRef.collection(AppConfig.commentsSubcollection).doc(comment.id);
+    final replyRef = articleRef
+        .collection(AppConfig.commentsSubcollection)
+        .doc(comment.id);
     try {
       if (action == _ReplyDialogAction.save) {
         await replyRef.update({
@@ -627,8 +628,7 @@ class ArticleDetailScreen extends StatelessWidget {
                   tooltip: 'Export comments CSV',
                   icon: const Icon(Icons.download_outlined),
                   onPressed:
-                      () =>
-                          _exportCommentsCsv(context, articleId: articleId),
+                      () => _exportCommentsCsv(context, articleId: articleId),
                 ),
               IconButton(
                 tooltip: 'Report article',
@@ -684,6 +684,7 @@ class ArticleDetailScreen extends StatelessWidget {
                     )
                     .trim();
               }
+
               final htmlBody =
                   hasHtml ? cleanedHtml(article.contentHtml) : article.excerpt;
               final useHtml = hasHtml && htmlBody.isNotEmpty;
@@ -698,20 +699,13 @@ class ArticleDetailScreen extends StatelessWidget {
                   lineHeight: LineHeight.number(1.4),
                   color: Colors.black87,
                 ),
-                'p': Style(
-                  margin: Margins.only(bottom: 12),
-                ),
+                'p': Style(margin: Margins.only(bottom: 12)),
                 'a': Style(
                   color: Colors.blue.shade700,
                   textDecoration: TextDecoration.underline,
                 ),
-                'img': Style(
-                  margin: Margins.zero,
-                  display: Display.block,
-                ),
-                'figure': Style(
-                  margin: Margins.only(bottom: 12),
-                ),
+                'img': Style(margin: Margins.zero, display: Display.block),
+                'figure': Style(margin: Margins.only(bottom: 12)),
                 'figcaption': Style(
                   color: Colors.black54,
                   fontSize: FontSize(12),
@@ -731,7 +725,8 @@ class ArticleDetailScreen extends StatelessWidget {
                                   article.featuredImageUrl!.isNotEmpty)
                               ? Image.network(
                                 article.featuredImageUrl!,
-                                fit: BoxFit.cover,
+                                fit: BoxFit.contain,
+                                alignment: Alignment.center,
                                 errorBuilder:
                                     (_, __, ___) =>
                                         Container(color: Colors.grey.shade200),
@@ -804,7 +799,8 @@ class ArticleDetailScreen extends StatelessWidget {
                                       width: maxWidth,
                                       child: Image.network(
                                         src,
-                                        fit: BoxFit.cover,
+                                        fit: BoxFit.contain,
+                                        alignment: Alignment.center,
                                         errorBuilder:
                                             (_, __, ___) => Container(
                                               color: Colors.grey.shade200,
@@ -824,8 +820,7 @@ class ArticleDetailScreen extends StatelessWidget {
                     Html(
                       data: plainTextHtml,
                       onLinkTap:
-                          (url, attributes, element) =>
-                              _openUrl(context, url),
+                          (url, attributes, element) => _openUrl(context, url),
                       style: htmlStyles,
                     ),
                   const SizedBox(height: 16),
@@ -965,8 +960,9 @@ class ArticleDetailScreen extends StatelessWidget {
                                 comment.replyText?.trim().isNotEmpty == true;
                             final canBlock =
                                 uid != null && uid != comment.authorUid;
-                            final isBlocked =
-                                blockedUsers.contains(comment.authorUid);
+                            final isBlocked = blockedUsers.contains(
+                              comment.authorUid,
+                            );
                             return PopupMenuButton<_CommentAction>(
                               icon: const Icon(Icons.more_horiz),
                               tooltip: 'Comment actions',
@@ -1015,13 +1011,12 @@ class ArticleDetailScreen extends StatelessWidget {
                                 }
                               },
                               itemBuilder: (menuContext) {
-                                final items =
-                                    <PopupMenuEntry<_CommentAction>>[
-                                      const PopupMenuItem(
-                                        value: _CommentAction.report,
-                                        child: Text('Report'),
-                                      ),
-                                    ];
+                                final items = <PopupMenuEntry<_CommentAction>>[
+                                  const PopupMenuItem(
+                                    value: _CommentAction.report,
+                                    child: Text('Report'),
+                                  ),
+                                ];
                                 if (isAdmin) {
                                   items.add(
                                     PopupMenuItem(
@@ -1091,8 +1086,7 @@ class ArticleDetailScreen extends StatelessWidget {
                                             0xFF2BBFD4,
                                           ),
                                           child: Text(
-                                            displayName(c.authorName)
-                                                    .isNotEmpty
+                                            displayName(c.authorName).isNotEmpty
                                                 ? displayName(
                                                   c.authorName,
                                                 )[0].toUpperCase()
@@ -1131,15 +1125,12 @@ class ArticleDetailScreen extends StatelessWidget {
                                                           height: 2,
                                                         ),
                                                         Text(
-                                                          onlyDate(
-                                                            c.createdAt,
+                                                          onlyDate(c.createdAt),
+                                                          style: const TextStyle(
+                                                            fontSize: 12,
+                                                            color:
+                                                                Colors.black54,
                                                           ),
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 12,
-                                                                color: Colors
-                                                                    .black54,
-                                                              ),
                                                         ),
                                                       ],
                                                     ),
@@ -1167,8 +1158,8 @@ class ArticleDetailScreen extends StatelessWidget {
                                                   ),
                                                   padding:
                                                       const EdgeInsets.only(
-                                                    left: 10,
-                                                  ),
+                                                        left: 10,
+                                                      ),
                                                   decoration: BoxDecoration(
                                                     border: Border(
                                                       left: BorderSide(
@@ -1197,12 +1188,11 @@ class ArticleDetailScreen extends StatelessWidget {
                                                                           'Admin')
                                                                       .trim()
                                                                   : 'Admin',
-                                                              style:
-                                                                  const TextStyle(
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w600,
-                                                                  ),
+                                                              style: const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
                                                             ),
                                                           ),
                                                           if (c.replyCreatedAt !=
@@ -1211,13 +1201,12 @@ class ArticleDetailScreen extends StatelessWidget {
                                                               onlyDate(
                                                                 c.replyCreatedAt!,
                                                               ),
-                                                              style:
-                                                                  const TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    color: Colors
+                                                              style: const TextStyle(
+                                                                fontSize: 12,
+                                                                color:
+                                                                    Colors
                                                                         .black54,
-                                                                  ),
+                                                              ),
                                                             ),
                                                         ],
                                                       ),
@@ -1225,8 +1214,7 @@ class ArticleDetailScreen extends StatelessWidget {
                                                       Text(
                                                         c.replyText ?? '',
                                                         softWrap: true,
-                                                        style:
-                                                            const TextStyle(
+                                                        style: const TextStyle(
                                                           height: 1.35,
                                                         ),
                                                       ),
