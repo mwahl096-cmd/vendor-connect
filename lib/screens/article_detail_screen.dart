@@ -32,15 +32,55 @@ class ArticleDetailScreen extends StatelessWidget {
   static const HtmlEscape _htmlEscape = HtmlEscape();
 
   String _decodeHtmlEntities(String input) {
-    return input
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&#160;', ' ')
-        .replaceAll('&#xA0;', ' ')
-        .replaceAll('&#xa0;', ' ')
-        .replaceAll('&#38;', '&')
-        .replaceAll('&#038;', '&')
-        .replaceAll('&#x26;', '&')
-        .replaceAll('&amp;', '&');
+    if (input.isEmpty) return input;
+    var output = input;
+    const namedEntities = <String, String>{
+      'nbsp': ' ',
+      'amp': '&',
+      'quot': '"',
+      'apos': "'",
+      'lt': '<',
+      'gt': '>',
+      'ldquo': '\u201C',
+      'rdquo': '\u201D',
+      'lsquo': '\u2018',
+      'rsquo': '\u2019',
+      'hellip': '\u2026',
+      'ndash': '\u2013',
+      'mdash': '\u2014',
+    };
+    final entityRegex = RegExp(r'&(#x[0-9A-Fa-f]+|#\d+|[A-Za-z]+);');
+
+    String decodeEntity(Match match) {
+      final raw = match.group(1);
+      if (raw == null) return match.group(0)!;
+      final key = raw.toLowerCase();
+
+      final named = namedEntities[key];
+      if (named != null) return named;
+
+      if (key.startsWith('#x')) {
+        final value = int.tryParse(key.substring(2), radix: 16);
+        if (value != null && value >= 0 && value <= 0x10FFFF) {
+          return String.fromCharCode(value);
+        }
+      } else if (key.startsWith('#')) {
+        final value = int.tryParse(key.substring(1));
+        if (value != null && value >= 0 && value <= 0x10FFFF) {
+          return String.fromCharCode(value);
+        }
+      }
+      return match.group(0)!;
+    }
+
+    // Decode a few rounds so double-encoded values (e.g. &amp;#8220;) resolve.
+    for (var i = 0; i < 3; i++) {
+      final previous = output;
+      output = output.replaceAllMapped(entityRegex, decodeEntity);
+      if (output == previous) break;
+    }
+
+    return output;
   }
 
   String _normalizeUrl(String url) {
@@ -689,6 +729,7 @@ class ArticleDetailScreen extends StatelessWidget {
                   hasHtml ? cleanedHtml(article.contentHtml) : article.excerpt;
               final useHtml = hasHtml && htmlBody.isNotEmpty;
               final plainTextHtml = _linkifyPlainText(htmlBody);
+              final displayTitle = _decodeHtmlEntities(article.title).trim();
               final bodyFontSize =
                   Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14;
               final htmlStyles = {
@@ -736,7 +777,7 @@ class ArticleDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    article.title,
+                    displayTitle.isEmpty ? article.title : displayTitle,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
