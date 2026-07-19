@@ -24,11 +24,35 @@ class VendorAdminService {
     final payload = <String, dynamic>{'uid': uid};
     if (approved != null) payload['approved'] = approved;
     if (disabled != null) payload['disabled'] = disabled;
-    final callable = _functions.httpsCallable(
-      'adminSetVendorFlags',
-      options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
-    );
-    await callable.call(payload);
+    try {
+      final callable = _functions.httpsCallable(
+        'adminSetVendorFlags',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+      await callable.call(payload);
+      return;
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint(
+        'adminSetVendorFlags callable error: ${e.code} ${e.message}',
+      );
+      if (!_canFallbackToFirestore(e.code)) {
+        rethrow;
+      }
+    } catch (err) {
+      debugPrint('adminSetVendorFlags callable failed: $err');
+    }
+
+    await _firestore
+        .collection(AppConfig.usersCollection)
+        .doc(uid)
+        .update(payload..remove('uid'));
+  }
+
+  bool _canFallbackToFirestore(String code) {
+    return code == 'unimplemented' ||
+        code == 'unavailable' ||
+        code == 'internal' ||
+        code == 'permission-denied';
   }
 
   Future<void> createPendingVendorProfile({
