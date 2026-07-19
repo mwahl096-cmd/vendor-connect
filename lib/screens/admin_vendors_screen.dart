@@ -5,6 +5,8 @@ import '../config.dart';
 import '../utils/role_utils.dart';
 import '../services/vendor_admin_service.dart';
 
+enum _VendorListMode { pending, active, disabled }
+
 class AdminVendorsScreen extends StatefulWidget {
   const AdminVendorsScreen({super.key});
 
@@ -20,7 +22,7 @@ class _AdminVendorsScreenState extends State<AdminVendorsScreen> {
         .collection(AppConfig.usersCollection);
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Admin - Vendors'),
@@ -33,13 +35,18 @@ class _AdminVendorsScreenState extends State<AdminVendorsScreen> {
               borderSide: BorderSide(width: 4, color: Colors.white),
               insets: EdgeInsets.symmetric(horizontal: 32),
             ),
-            tabs: [Tab(text: 'Pending'), Tab(text: 'Active')],
+            tabs: [
+              Tab(text: 'Pending'),
+              Tab(text: 'Active'),
+              Tab(text: 'Disabled'),
+            ],
           ),
         ),
         body: TabBarView(
           children: [
-            _VendorList(source: users, pending: true),
-            _VendorList(source: users, pending: false),
+            _VendorList(source: users, mode: _VendorListMode.pending),
+            _VendorList(source: users, mode: _VendorListMode.active),
+            _VendorList(source: users, mode: _VendorListMode.disabled),
           ],
         ),
       ),
@@ -49,8 +56,8 @@ class _AdminVendorsScreenState extends State<AdminVendorsScreen> {
 
 class _VendorList extends StatefulWidget {
   final CollectionReference<Map<String, dynamic>> source;
-  final bool pending;
-  const _VendorList({required this.source, required this.pending});
+  final _VendorListMode mode;
+  const _VendorList({required this.source, required this.mode});
 
   @override
   State<_VendorList> createState() => _VendorListState();
@@ -282,10 +289,13 @@ class _VendorListState extends State<_VendorList> {
             if (role != 'vendor') return false;
             final approved = truthy(data['approved']);
             final disabled = truthy(data['disabled']);
-            if (widget.pending) {
-              return !approved || disabled;
-            } else {
-              return approved && !disabled;
+            switch (widget.mode) {
+              case _VendorListMode.pending:
+                return !approved && !disabled;
+              case _VendorListMode.active:
+                return approved && !disabled;
+              case _VendorListMode.disabled:
+                return disabled;
             }
           }).toList()
             ..sort(
@@ -326,18 +336,19 @@ class _VendorListState extends State<_VendorList> {
             .where((doc) => !_deletingIds.contains(doc.id) && !_inFlightIds.contains(doc.id))
             .toList(growable: false);
 
-        final searchedDocs =
-            widget.pending ? visibleDocs : _applySearch(visibleDocs);
+        final showsSearch = widget.mode != _VendorListMode.pending;
+        final searchedDocs = showsSearch ? _applySearch(visibleDocs) : visibleDocs;
 
         if (searchedDocs.isEmpty) {
-          final message =
-              (!widget.pending && _searchQuery.isNotEmpty)
-                  ? 'No vendors match "${_searchController.text.trim()}"'
-                  : (widget.pending
-                      ? 'No pending vendors'
-                      : 'No active vendors');
+          final message = showsSearch && _searchQuery.isNotEmpty
+              ? 'No vendors match "${_searchController.text.trim()}"'
+              : switch (widget.mode) {
+                  _VendorListMode.pending => 'No pending vendors',
+                  _VendorListMode.active => 'No active vendors',
+                  _VendorListMode.disabled => 'No disabled vendors',
+                };
           final empty = Center(child: Text(message));
-          if (widget.pending) return empty;
+          if (!showsSearch) return empty;
           return Column(
             children: [_buildSearchBar(), Expanded(child: empty)],
           );
@@ -349,6 +360,8 @@ class _VendorListState extends State<_VendorList> {
           itemBuilder: (context, i) {
             final d = searchedDocs[i];
             final m = d.data();
+            final approved = truthy(m['approved']);
+            final disabled = truthy(m['disabled']);
             final busy = _isBusy(d.id);
             final deleting = _deletingIds.contains(d.id);
             final primaryColor = const Color(0xFF2BBFD4);
@@ -433,7 +446,7 @@ class _VendorListState extends State<_VendorList> {
                           spacing: 12,
                           runSpacing: 8,
                           children: [
-                            if (widget.pending)
+                            if (!approved && !disabled)
                               _FilledActionButton(
                                 label: 'Approve',
                                 icon: Icons.check_circle_outline,
@@ -451,23 +464,60 @@ class _VendorListState extends State<_VendorList> {
                                           successMessage: 'Vendor approved',
                                         ),
                               ),
-                            _FilledActionButton(
-                              label: 'Disable',
-                              icon: Icons.block_outlined,
-                              color: primaryColor,
-                              busy: busy,
-                              onPressed: busy
-                                  ? null
-                                  : () => _updateVendorFields(
-                                        doc: d,
-                                        updates: {
-                                          'disabled': true,
-                                          'approved': false,
-                                        },
-                                        removeFromCurrentList: !widget.pending,
-                                        successMessage: 'Vendor disabled',
-                                      ),
-                            ),
+                            if (!approved && !disabled)
+                              _FilledActionButton(
+                                label: 'Reject',
+                                icon: Icons.block_outlined,
+                                color: primaryColor,
+                                busy: busy,
+                                onPressed: busy
+                                    ? null
+                                    : () => _updateVendorFields(
+                                          doc: d,
+                                          updates: {
+                                            'disabled': true,
+                                            'approved': false,
+                                          },
+                                          removeFromCurrentList: true,
+                                          successMessage: 'Vendor rejected',
+                                        ),
+                              ),
+                            if (approved && !disabled)
+                              _FilledActionButton(
+                                label: 'Disable',
+                                icon: Icons.block_outlined,
+                                color: primaryColor,
+                                busy: busy,
+                                onPressed: busy
+                                    ? null
+                                    : () => _updateVendorFields(
+                                          doc: d,
+                                          updates: {
+                                            'disabled': true,
+                                            'approved': false,
+                                          },
+                                          removeFromCurrentList: true,
+                                          successMessage: 'Vendor disabled',
+                                        ),
+                              ),
+                            if (disabled)
+                              _FilledActionButton(
+                                label: 'Activate',
+                                icon: Icons.check_circle_outline,
+                                color: primaryColor,
+                                busy: busy,
+                                onPressed: busy
+                                    ? null
+                                    : () => _updateVendorFields(
+                                          doc: d,
+                                          updates: {
+                                            'approved': true,
+                                            'disabled': false,
+                                          },
+                                          removeFromCurrentList: true,
+                                          successMessage: 'Vendor activated',
+                                        ),
+                              ),
                             _FilledActionButton(
                               label: 'Delete',
                               icon: Icons.delete_outline,
@@ -486,7 +536,7 @@ class _VendorListState extends State<_VendorList> {
             );
           },
         );
-        if (widget.pending) return list;
+        if (!showsSearch) return list;
         return Column(
           children: [_buildSearchBar(), Expanded(child: list)],
         );

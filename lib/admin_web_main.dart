@@ -1608,7 +1608,7 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
     final approved = truthy(data['approved']);
     final disabled = truthy(data['disabled']);
     if (_filter == _UserStatusFilter.pending) {
-      return role != 'admin' && (!approved || disabled);
+      return role != 'admin' && !approved && !disabled;
     }
     if (_filter == _UserStatusFilter.approved) {
       return role != 'admin' && approved && !disabled;
@@ -1841,7 +1841,7 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
                     : Wrap(
                         spacing: 8,
                         children: [
-                          if (!isAdmin && (!approved || disabled))
+                          if (!isAdmin && !approved && !disabled)
                             TextButton.icon(
                               onPressed: () => _setFlags(
                                 doc.id,
@@ -1852,7 +1852,7 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
                               icon: const Icon(Icons.check_circle_outline),
                               label: const Text('Accept'),
                             ),
-                          if (!isAdmin && (!approved || disabled))
+                          if (!isAdmin && !approved && !disabled)
                             TextButton.icon(
                               onPressed: () => _setFlags(
                                 doc.id,
@@ -1862,6 +1862,17 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
                               ),
                               icon: const Icon(Icons.block),
                               label: const Text('Reject'),
+                            ),
+                          if (!isAdmin && disabled)
+                            TextButton.icon(
+                              onPressed: () => _setFlags(
+                                doc.id,
+                                approved: true,
+                                disabled: false,
+                                message: 'User activated.',
+                              ),
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: const Text('Activate'),
                             ),
                           if (!isAdmin && approved && !disabled)
                             TextButton.icon(
