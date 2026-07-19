@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 /// If you reconfigure Firebase, regenerate this file with `flutterfire configure`.
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
+    if (kIsWeb) {
+      return web;
+    }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
@@ -17,6 +20,15 @@ class DefaultFirebaseOptions {
         );
     }
   }
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDPZ2Zjkw5A9cQbFjTNaEQDi35xNeZN9f0',
+    appId: '1:66150861995:web:2046008260a96a441e3bee',
+    messagingSenderId: '66150861995',
+    projectId: 'vendor-connect-3812e',
+    authDomain: 'vendor-connect-3812e.firebaseapp.com',
+    storageBucket: 'vendor-connect-3812e.firebasestorage.app',
+  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyC4CQjyPhpGACwG4zTxVJlM3vZcpSvvDFA',

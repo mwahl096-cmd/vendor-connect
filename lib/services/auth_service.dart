@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,6 +9,7 @@ import '../models/user_profile.dart';
 class AuthService extends ChangeNotifier {
   final _auth = FirebaseAuth.instance;
   final _db = FirebaseFirestore.instance;
+  final _functions = FirebaseFunctions.instanceFor(region: 'us-central1');
 
   User? get user => _auth.currentUser;
   Stream<User?> authStateChanges() => _auth.authStateChanges();
@@ -37,26 +39,86 @@ class AuthService extends ChangeNotifier {
       provided: username,
     );
     if (!snap.exists) {
-      final profile = UserProfile(
-        uid: u.uid,
+      await _createPendingVendorProfile(
+        user: u,
         name: name,
         username: resolvedUsername,
         businessName: businessName,
-        phone: (phone ?? '').trim(),
-        email: u.email ?? '',
-        role: 'vendor',
-        approved: false,
-        disabled: false,
+        phone: phone,
       );
-      await doc.set(profile.toMap());
     } else {
       final data = snap.data();
+      final updates = <String, dynamic>{};
       final existingUsername =
           data != null ? (data['username'] as String? ?? '') : '';
       if (existingUsername.trim().isEmpty && resolvedUsername.isNotEmpty) {
-        await doc.set({'username': resolvedUsername}, SetOptions(merge: true));
+        updates['username'] = resolvedUsername;
+      }
+      if ((data?['name'] ?? '').toString().trim().isEmpty &&
+          name.trim().isNotEmpty) {
+        updates['name'] = name.trim();
+      }
+      if ((data?['businessName'] ?? '').toString().trim().isEmpty &&
+          businessName.trim().isNotEmpty) {
+        updates['businessName'] = businessName.trim();
+      }
+      final trimmedPhone = (phone ?? '').trim();
+      if ((data?['phone'] ?? '').toString().trim().isEmpty &&
+          trimmedPhone.isNotEmpty) {
+        updates['phone'] = trimmedPhone;
+      }
+      if (updates.isNotEmpty) {
+        updates['updatedAt'] = FieldValue.serverTimestamp();
+        await doc.set(updates, SetOptions(merge: true));
       }
     }
+  }
+
+  Future<void> _createPendingVendorProfile({
+    required User user,
+    required String name,
+    required String username,
+    required String businessName,
+    String? phone,
+  }) async {
+    final payload = <String, dynamic>{
+      'name': name.trim(),
+      'username': username.trim(),
+      'businessName': businessName.trim(),
+      'phone': (phone ?? '').trim(),
+    };
+
+    try {
+      final callable = _functions.httpsCallable(
+        'createVendorProfile',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+      await callable.call(payload);
+      return;
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('createVendorProfile callable failed: ${e.code} ${e.message}');
+    } catch (err) {
+      debugPrint('createVendorProfile callable unavailable: $err');
+    }
+
+    final profile = UserProfile(
+      uid: user.uid,
+      name: name.trim(),
+      username: username.trim(),
+      businessName: businessName.trim(),
+      phone: (phone ?? '').trim(),
+      email: user.email ?? '',
+      role: 'vendor',
+      approved: false,
+      disabled: false,
+    ).toMap()
+      ..addAll({
+        'uid': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+    await _db.collection(AppConfig.usersCollection).doc(user.uid).set(profile);
   }
 
   Future<void> updateProfile({

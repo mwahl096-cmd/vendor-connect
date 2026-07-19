@@ -11,6 +11,7 @@ import { setGlobalOptions } from "firebase-functions/v2/options";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
+import * as functionsV1 from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 
@@ -114,6 +115,32 @@ function normalizedRole(data: FirebaseFirestore.DocumentData | undefined): strin
   return normalizedText(raw).toLowerCase();
 }
 
+async function assertAdmin(callerUid: string | undefined): Promise<FirebaseFirestore.DocumentSnapshot> {
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+  const callerDoc = await admin.firestore().doc(`users/${callerUid}`).get();
+  if (!callerDoc.exists || normalizedRole(callerDoc.data()) !== "admin") {
+    throw new HttpsError("permission-denied", "Admins only");
+  }
+  return callerDoc;
+}
+
+async function writeAdminAudit(
+  actorUid: string,
+  action: string,
+  targetUid: string,
+  details: Record<string, unknown> = {}
+): Promise<void> {
+  await admin.firestore().collection("adminAuditLogs").add({
+    actorUid,
+    action,
+    targetUid,
+    details,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 function fallbackDisplayName(
   data: FirebaseFirestore.DocumentData | undefined,
   fallback = "Someone"
@@ -127,6 +154,89 @@ function fallbackDisplayName(
   if (email) return email;
   return fallback;
 }
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export const onAuthUserCreated = functionsV1.auth.user().onCreate(async (user) => {
+  await wait(10000);
+  const userRef = admin.firestore().doc(`users/${user.uid}`);
+  const existing = await userRef.get();
+  if (existing.exists) return;
+
+  const email = normalizedText(user.email).toLowerCase();
+  const fallbackName =
+    normalizedText(user.displayName) ||
+    (email.includes("@") ? email.split("@")[0] : "") ||
+    user.uid;
+
+  await userRef.set({
+    uid: user.uid,
+    email,
+    name: fallbackName,
+    username: email.includes("@") ? email.split("@")[0] : user.uid,
+    businessName: "",
+    phone: "",
+    role: "vendor",
+    approved: false,
+    disabled: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+});
+
+export const createVendorProfile = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Authentication required");
+  }
+
+  const userRecord = await admin.auth().getUser(uid);
+  const email = normalizedText(userRecord.email).toLowerCase();
+  const requestedName = normalizedText(req.data?.name);
+  const name = requestedName || normalizedText(userRecord.displayName);
+  const username =
+    normalizedText(req.data?.username) ||
+    (email.includes("@") ? email.split("@")[0] : "") ||
+    uid;
+  const businessName = normalizedText(req.data?.businessName);
+  const phone = normalizedText(req.data?.phone);
+  const userRef = admin.firestore().doc(`users/${uid}`);
+  const existing = await userRef.get();
+
+  if (existing.exists) {
+    await userRef.set(
+      {
+        uid,
+        email,
+        name,
+        username,
+        businessName,
+        phone,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return { ok: true, created: false };
+  }
+
+  await userRef.set({
+    uid,
+    email,
+    name,
+    username,
+    businessName,
+    phone,
+    role: "vendor",
+    approved: false,
+    disabled: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, created: true };
+});
 
 function preview(value: string, maxLength = 110): string {
   const compact = value.replace(/\s+/g, " ").trim();
@@ -637,19 +747,188 @@ export const onUserApproved = onDocumentUpdated("users/{uid}", async (event) => 
 // Callable to toggle vendor approval/disabled (server verified admin)
 export const adminSetVendorFlags = onCall(async (req) => {
   const callerUid = req.auth?.uid;
-  if (!callerUid) {
-    throw new Error("Unauthenticated");
-  }
-  const callerDoc = await admin.firestore().doc(`users/${callerUid}`).get();
-  if (!callerDoc.exists || callerDoc.get("role") !== "admin") {
-    throw new Error("Forbidden");
-  }
+  await assertAdmin(callerUid);
   const { uid, approved, disabled } = req.data as { uid: string; approved?: boolean; disabled?: boolean };
-  if (!uid) throw new Error("uid required");
+  if (!uid) throw new HttpsError("invalid-argument", "uid is required");
   const updates: Record<string, any> = {};
   if (typeof approved === "boolean") updates.approved = approved;
   if (typeof disabled === "boolean") updates.disabled = disabled;
   await admin.firestore().doc(`users/${uid}`).set(updates, { merge: true });
+  await writeAdminAudit(callerUid ?? "", "admin_set_vendor_flags", uid, updates);
+  return { ok: true };
+});
+
+export const adminCreatePendingVendorProfile = onCall(async (req) => {
+  const callerUid = req.auth?.uid;
+  await assertAdmin(callerUid);
+
+  const email = normalizedText(req.data?.email).toLowerCase();
+  if (!email || !email.includes("@")) {
+    throw new HttpsError("invalid-argument", "A valid email is required");
+  }
+
+  let userRecord: admin.auth.UserRecord;
+  try {
+    userRecord = await admin.auth().getUserByEmail(email);
+  } catch (err: any) {
+    if (err?.code === "auth/user-not-found") {
+      throw new HttpsError(
+        "not-found",
+        "No Firebase Auth user exists for this email. Ask the vendor to register first."
+      );
+    }
+    throw err;
+  }
+
+  const userRef = admin.firestore().doc(`users/${userRecord.uid}`);
+  const existing = await userRef.get();
+  if (existing.exists && normalizedRole(existing.data()) === "admin") {
+    throw new HttpsError("failed-precondition", "This account is an admin.");
+  }
+
+  const name =
+    normalizedText(req.data?.name) ||
+    normalizedText(userRecord.displayName) ||
+    (email.includes("@") ? email.split("@")[0] : email);
+  const businessName = normalizedText(req.data?.businessName);
+  const phone = normalizedText(req.data?.phone);
+  const existingCreatedAt = existing.data()?.createdAt;
+
+  await userRef.set(
+    {
+      uid: userRecord.uid,
+      email,
+      name,
+      username: email.includes("@") ? email.split("@")[0] : email,
+      businessName,
+      phone,
+      role: "vendor",
+      approved: false,
+      disabled: false,
+      createdAt:
+        existingCreatedAt ?? admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await writeAdminAudit(
+    callerUid ?? "",
+    "admin_create_pending_vendor_profile",
+    userRecord.uid,
+    { email, repairedExistingProfile: existing.exists }
+  );
+
+  return { ok: true, uid: userRecord.uid, created: !existing.exists };
+});
+
+export const adminListAdmins = onCall(async (req) => {
+  await assertAdmin(req.auth?.uid);
+  const adminsSnap = await admin
+    .firestore()
+    .collection("users")
+    .where("role", "==", "admin")
+    .get();
+
+  const admins = adminsSnap.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      uid: doc.id,
+      email: normalizedText(data.email),
+      name: fallbackDisplayName(data, ""),
+      role: normalizedRole(data) || "admin",
+      disabled: Boolean(data.disabled),
+    };
+  }).sort((a, b) => a.email.localeCompare(b.email));
+
+  return { ok: true, admins };
+});
+
+export const adminAddAdmin = onCall(async (req) => {
+  const callerUid = req.auth?.uid;
+  await assertAdmin(callerUid);
+
+  const email = normalizedText(req.data?.email).toLowerCase();
+  if (!email || !email.includes("@")) {
+    throw new HttpsError("invalid-argument", "A valid email is required");
+  }
+
+  let userRecord: admin.auth.UserRecord;
+  let createdUser = false;
+  try {
+    userRecord = await admin.auth().getUserByEmail(email);
+  } catch (err: any) {
+    if (err?.code === "auth/user-not-found") {
+      userRecord = await admin.auth().createUser({
+        email,
+        emailVerified: false,
+        disabled: false,
+      });
+      createdUser = true;
+    } else {
+      throw err;
+    }
+  }
+
+  await admin.auth().setCustomUserClaims(userRecord.uid, {
+    ...(userRecord.customClaims ?? {}),
+    admin: true,
+  });
+  await admin.firestore().doc(`users/${userRecord.uid}`).set(
+    {
+      uid: userRecord.uid,
+      email,
+      name: userRecord.displayName ?? "",
+      role: "admin",
+      approved: true,
+      disabled: false,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  const setupLink = await admin.auth().generatePasswordResetLink(email, {
+    url: process.env.ADMIN_APP_URL || "https://vendor-connect-3812e.web.app",
+    handleCodeInApp: false,
+  });
+  await writeAdminAudit(callerUid ?? "", "admin_add_admin", userRecord.uid, {
+    email,
+    createdUser,
+  });
+
+  return { ok: true, uid: userRecord.uid, createdUser, setupLink };
+});
+
+export const adminRemoveAdmin = onCall(async (req) => {
+  const callerUid = req.auth?.uid;
+  await assertAdmin(callerUid);
+
+  const uid = normalizedText(req.data?.uid);
+  if (!uid) {
+    throw new HttpsError("invalid-argument", "uid is required");
+  }
+  if (uid === callerUid) {
+    throw new HttpsError(
+      "failed-precondition",
+      "You cannot remove your own admin access"
+    );
+  }
+
+  const userRecord = await admin.auth().getUser(uid);
+  const claims = { ...(userRecord.customClaims ?? {}) };
+  delete claims.admin;
+  await admin.auth().setCustomUserClaims(uid, claims);
+  await admin.firestore().doc(`users/${uid}`).set(
+    {
+      role: "vendor",
+      approved: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  await writeAdminAudit(callerUid ?? "", "admin_remove_admin", uid, {
+    email: userRecord.email ?? "",
+  });
+
   return { ok: true };
 });
 

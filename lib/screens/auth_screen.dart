@@ -97,12 +97,19 @@ class _AuthScreenState extends State<AuthScreen> {
           email: _email.text.trim(),
           password: _password.text,
         );
-        await auth.ensureProfile(
-          cred.user!,
-          name: _name.text.trim(),
-          businessName: _business.text.trim(),
-          phone: _phone.text.trim(),
-        );
+        try {
+          await auth.ensureProfile(
+            cred.user!,
+            name: _name.text.trim(),
+            businessName: _business.text.trim(),
+            phone: _phone.text.trim(),
+          );
+        } catch (_) {
+          try {
+            await cred.user?.delete();
+          } catch (_) {}
+          rethrow;
+        }
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed(PendingApprovalScreen.route);
         return;
@@ -113,6 +120,15 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       final msg = _friendlyError(e);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Registration failed while creating your pending vendor profile: ${e.message ?? e.code}',
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }

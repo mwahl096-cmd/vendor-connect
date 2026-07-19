@@ -43,11 +43,27 @@ service cloud.firestore {
         request.resource.data.replyCreatedAt == resource.data.replyCreatedAt &&
         request.resource.data.replyCreatedAtClient == resource.data.replyCreatedAtClient;
     }
+    function protectedUserFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role',
+        'Role',
+        'userRole',
+        'UserRole',
+        'approved',
+        'disabled'
+      ]);
+    }
+    function safeSelfProfileCreate() {
+      return !hasAdminPrivileges(request.resource.data) &&
+        !isTruthy(request.resource.data.approved) &&
+        isFalsy(request.resource.data.disabled);
+    }
 
     match /users/{uid} {
       allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && uid == request.auth.uid;
-      allow update: if isSignedIn() && (uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && uid == request.auth.uid && safeSelfProfileCreate();
+      allow update: if isAdmin() ||
+        (isSignedIn() && uid == request.auth.uid && protectedUserFieldsUnchanged());
       allow delete: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
     }
 
@@ -100,6 +116,11 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow create: if isSignedIn();
       allow read, update, delete: if isAdmin();
+    }
+
+    match /adminAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
     }
   }
 }

@@ -16,6 +16,39 @@ class VendorAdminService {
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
 
+  Future<void> setVendorFlags({
+    required String uid,
+    bool? approved,
+    bool? disabled,
+  }) async {
+    final payload = <String, dynamic>{'uid': uid};
+    if (approved != null) payload['approved'] = approved;
+    if (disabled != null) payload['disabled'] = disabled;
+    final callable = _functions.httpsCallable(
+      'adminSetVendorFlags',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+    );
+    await callable.call(payload);
+  }
+
+  Future<void> createPendingVendorProfile({
+    required String email,
+    String? name,
+    String? businessName,
+    String? phone,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'adminCreatePendingVendorProfile',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+    );
+    await callable.call(<String, dynamic>{
+      'email': email,
+      'name': name ?? '',
+      'businessName': businessName ?? '',
+      'phone': phone ?? '',
+    });
+  }
+
   /// Deletes a vendor by delegating to the backend callable. If the callable
   /// is unavailable (e.g., not yet deployed), fall back to the legacy
   /// client-side cleanup to avoid blocking admin workflows.
