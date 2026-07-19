@@ -1762,9 +1762,19 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
           child: TextField(
             controller: _search,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Search users',
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        _search.clear();
+                        setState(() {});
+                      },
+                    ),
             ),
           ),
         ),
@@ -1806,7 +1816,11 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
             });
 
           if (docs.isEmpty) {
-            return Text('No ${_filterLabel(_filter).toLowerCase()} found.');
+            final filterName = _filterLabel(_filter).toLowerCase();
+            if (needle.isNotEmpty) {
+              return Text('No $filterName match "${_search.text.trim()}".');
+            }
+            return Text('No $filterName found.');
           }
 
           return ListView.separated(
