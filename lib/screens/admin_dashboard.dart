@@ -18,6 +18,11 @@ class AdminDashboardScreen extends StatelessWidget {
       .snapshots()
       .map((s) => s.size);
 
+  Stream<int> _countArticleReads() => FirebaseFirestore.instance
+      .collection(AppConfig.readsCollection)
+      .snapshots()
+      .map((s) => s.size);
+
   Stream<int> _countVendors() => FirebaseFirestore.instance
       .collection(AppConfig.usersCollection)
       .snapshots()
@@ -64,6 +69,16 @@ class AdminDashboardScreen extends StatelessWidget {
         color: const Color(0xFF2BBFD4),
         icon: Icons.description_outlined,
         stream: _countArticles(),
+        onTap:
+            () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ManageArticlesScreen()),
+            ),
+      ),
+      _StatCard(
+        title: 'Article Reads',
+        color: const Color(0xFF8A6FE8),
+        icon: Icons.visibility_outlined,
+        stream: _countArticleReads(),
         onTap:
             () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ManageArticlesScreen()),
