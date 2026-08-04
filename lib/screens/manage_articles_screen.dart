@@ -43,58 +43,129 @@ class ManageArticlesScreen extends StatelessWidget {
             builder: (context, readsSnap) {
               final counts = _readCounts(readsSnap.data?.docs ?? const []);
               return ListView.separated(
+                padding: const EdgeInsets.all(12),
                 itemCount: docs.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, i) {
                   final d = docs[i];
                   final data = d.data();
                   final title = data['title'] ?? 'Untitled';
-                  final allow = (data['allowComments'] ?? true) as bool;
-                  final vis = (data['commentsVisibility'] ?? 'public') as String;
                   final publishedAt = data['publishedAt'];
                   final date = (publishedAt is Timestamp)
                       ? publishedAt.toDate().toLocal().toString().split(' ').first
                       : '';
                   final reads = counts[d.id] ?? 0;
-                  return ListTile(
-                    title: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text('Published $date - $reads Reads / Views'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: allow,
-                          onChanged: (v) =>
-                              d.reference.update({'allowComments': v}),
-                        ),
-                        const SizedBox(width: 8),
-                        DropdownButton<String>(
-                          value: vis,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'public',
-                              child: Text('Public'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'private',
-                              child: Text('Just Me'),
-                            ),
-                          ],
-                          onChanged: (v) =>
-                              d.reference.update({'commentsVisibility': v}),
-                        ),
-                      ],
-                    ),
+                  return _ArticleReadCard(
+                    title: title.toString(),
+                    date: date,
+                    reads: reads,
                   );
                 },
               );
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _ArticleReadCard extends StatelessWidget {
+  const _ArticleReadCard({
+    required this.title,
+    required this.date,
+    required this.reads,
+  });
+
+  final String title;
+  final String date;
+  final int reads;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE1EEF0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE5F7F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.article_outlined,
+              color: Color(0xFF007983),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  date.isEmpty ? 'Published date unavailable' : 'Published $date',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 86,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF007983),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  reads.toString(),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  reads == 1 ? 'View' : 'Views',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.86),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
