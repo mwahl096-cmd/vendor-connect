@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'config.dart';
 import 'firebase_options.dart';
+import 'models/article.dart';
 import 'models/loyalty_partner.dart';
 import 'services/admin_management_service.dart';
 import 'services/loyalty_service.dart';
@@ -214,6 +215,7 @@ class _AdminDashboardShellState extends State<AdminDashboardShell> {
     final pages = [
       _DashboardOverview(onOpenSection: _openSection),
       const _CommentsAdminPage(),
+      const _ArticlesAdminPage(),
       const _LoyaltyAdminPage(),
       const _UsersAdminPage(),
       const _AdminsPage(),
@@ -228,6 +230,11 @@ class _AdminDashboardShellState extends State<AdminDashboardShell> {
         icon: Icon(Icons.comment_outlined),
         selectedIcon: Icon(Icons.comment),
         label: Text('Comments'),
+      ),
+      NavigationRailDestination(
+        icon: Icon(Icons.article_outlined),
+        selectedIcon: Icon(Icons.article),
+        label: Text('Articles'),
       ),
       NavigationRailDestination(
         icon: Icon(Icons.card_membership_outlined),
@@ -391,12 +398,20 @@ class _DashboardOverview extends StatelessWidget {
                               onTap: () => onOpenSection(1),
                             ),
                             _CountTile(
+                              title: 'Articles',
+                              collection: AppConfig.articlesCollection,
+                              icon: Icons.article,
+                              accent: const Color(0xFF8FC7FF),
+                              width: cardWidth,
+                              onTap: () => onOpenSection(2),
+                            ),
+                            _CountTile(
                               title: 'Loyalty Benefits',
                               collection: AppConfig.loyaltyPartnersCollection,
                               icon: Icons.card_membership,
                               accent: const Color(0xFFC8F58A),
                               width: cardWidth,
-                              onTap: () => onOpenSection(2),
+                              onTap: () => onOpenSection(3),
                             ),
                             _CountTile(
                               title: 'Users',
@@ -404,7 +419,7 @@ class _DashboardOverview extends StatelessWidget {
                               icon: Icons.people,
                               accent: const Color(0xFF7FD2DF),
                               width: cardWidth,
-                              onTap: () => onOpenSection(3),
+                              onTap: () => onOpenSection(4),
                             ),
                             _CountTile(
                               title: 'Active Admins',
@@ -414,7 +429,7 @@ class _DashboardOverview extends StatelessWidget {
                               width: cardWidth,
                               whereField: 'role',
                               whereValue: 'admin',
-                              onTap: () => onOpenSection(4),
+                              onTap: () => onOpenSection(5),
                             ),
                           ],
                         );
@@ -1263,6 +1278,182 @@ class _ArticleFilterDropdown extends StatelessWidget {
               }),
             ],
             onChanged: onChanged,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ArticlesAdminPage extends StatefulWidget {
+  const _ArticlesAdminPage();
+
+  @override
+  State<_ArticlesAdminPage> createState() => _ArticlesAdminPageState();
+}
+
+class _ArticlesAdminPageState extends State<_ArticlesAdminPage> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Map<String, int> _readCounts(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final uniqueReaders = <String, Set<String>>{};
+    for (final doc in docs) {
+      final data = doc.data();
+      final articleId = (data['articleId'] ?? '').toString().trim();
+      if (articleId.isEmpty) continue;
+      final uid = (data['uid'] ?? '').toString().trim();
+      uniqueReaders.putIfAbsent(articleId, () => <String>{}).add(
+            uid.isEmpty ? doc.id : uid,
+          );
+    }
+    return uniqueReaders.map(
+      (articleId, readers) => MapEntry(articleId, readers.length),
+    );
+  }
+
+  String _dateLabel(DateTime value) {
+    final local = value.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AdminPageFrame(
+      title: 'Articles',
+      actions: [
+        SizedBox(
+          width: 320,
+          child: TextField(
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Search articles',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        _search.clear();
+                        setState(() {});
+                      },
+                    ),
+            ),
+          ),
+        ),
+      ],
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection(AppConfig.articlesCollection)
+            .orderBy('publishedAt', descending: true)
+            .limit(500)
+            .snapshots(),
+        builder: (context, articleSnapshot) {
+          if (articleSnapshot.connectionState == ConnectionState.waiting) {
+            return const LinearProgressIndicator();
+          }
+          if (articleSnapshot.hasError) {
+            return const Text('Unable to load articles.');
+          }
+
+          final articles = (articleSnapshot.data?.docs ?? const [])
+              .map((doc) {
+                try {
+                  return Article.fromDoc(doc);
+                } catch (_) {
+                  return null;
+                }
+              })
+              .whereType<Article>()
+              .toList(growable: false);
+
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection(AppConfig.readsCollection)
+                .snapshots(),
+            builder: (context, readsSnapshot) {
+              if (readsSnapshot.connectionState == ConnectionState.waiting) {
+                return const LinearProgressIndicator();
+              }
+              if (readsSnapshot.hasError) {
+                return const Text('Unable to load article read counts.');
+              }
+
+              final counts = _readCounts(readsSnapshot.data?.docs ?? const []);
+              final needle = _search.text.trim().toLowerCase();
+              final visible = articles.where((article) {
+                if (needle.isEmpty) return true;
+                final haystack =
+                    '${article.id} ${article.wpId} ${article.title} ${article.status}'
+                        .toLowerCase();
+                return haystack.contains(needle);
+              }).toList(growable: false);
+
+              if (visible.isEmpty) {
+                if (needle.isNotEmpty) {
+                  return Text('No articles match "${_search.text.trim()}".');
+                }
+                return const Text('No articles found.');
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Reads / Views counts unique signed-in users who opened each article.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: visible.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final article = visible[index];
+                        final reads = counts[article.id] ?? 0;
+                        return ListTile(
+                          leading: const Icon(Icons.article_outlined),
+                          title: Text(article.title.isEmpty
+                              ? 'Article ${article.id}'
+                              : article.title),
+                          subtitle: Text(
+                            'Published ${_dateLabel(article.publishedAt)} - ${article.status} - Article ${article.id}',
+                          ),
+                          trailing: SizedBox(
+                            width: 120,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  reads.toString(),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                                const Text('Reads / Views'),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
