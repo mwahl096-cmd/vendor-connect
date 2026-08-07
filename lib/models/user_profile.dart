@@ -1,5 +1,7 @@
 class UserProfile {
   final String uid;
+  final String firstName;
+  final String lastName;
   final String name;
   final String username;
   final String businessName;
@@ -12,6 +14,8 @@ class UserProfile {
 
   UserProfile({
     required this.uid,
+    this.firstName = '',
+    this.lastName = '',
     required this.name,
     required this.username,
     required this.businessName,
@@ -24,6 +28,8 @@ class UserProfile {
   });
 
   Map<String, dynamic> toMap() => {
+    'firstName': firstName,
+    'lastName': lastName,
     'name': name,
     'username': username,
     'businessName': businessName,
@@ -39,6 +45,8 @@ class UserProfile {
   static UserProfile fromMap(String uid, Map<String, dynamic> data) =>
       UserProfile(
         uid: uid,
+        firstName: (data['firstName'] ?? '') as String,
+        lastName: (data['lastName'] ?? '') as String,
         name: (data['name'] ?? '') as String,
         username: (data['username'] ?? '') as String,
         businessName: (data['businessName'] ?? '') as String,

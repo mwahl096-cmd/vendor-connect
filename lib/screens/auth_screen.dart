@@ -17,7 +17,8 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
   final _business = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
@@ -97,10 +98,18 @@ class _AuthScreenState extends State<AuthScreen> {
           email: _email.text.trim(),
           password: _password.text,
         );
+        final firstName = _firstName.text.trim();
+        final lastName = _lastName.text.trim();
+        final fullName = [
+          firstName,
+          lastName,
+        ].where((part) => part.isNotEmpty).join(' ');
         try {
           await auth.ensureProfile(
             cred.user!,
-            name: _name.text.trim(),
+            name: fullName,
+            firstName: firstName,
+            lastName: lastName,
             businessName: _business.text.trim(),
             phone: _phone.text.trim(),
           );
@@ -132,6 +141,17 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _firstName.dispose();
+    _lastName.dispose();
+    _business.dispose();
+    _phone.dispose();
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
   }
 
   @override
@@ -196,8 +216,8 @@ class _AuthScreenState extends State<AuthScreen> {
                           children: [
                             if (!_isLogin) ...[
                               _LinedField(
-                                controller: _name,
-                                hint: 'Your Name',
+                                controller: _firstName,
+                                hint: 'First Name',
                                 icon: Icons.person_outline,
                                 validator:
                                     (v) =>
@@ -206,6 +226,21 @@ class _AuthScreenState extends State<AuthScreen> {
                                                     .enableSelfRegistration)
                                             ? null
                                             : (v == null || v.isEmpty)
+                                            ? 'Required'
+                                            : null,
+                              ),
+                              const SizedBox(height: 12),
+                              _LinedField(
+                                controller: _lastName,
+                                hint: 'Last Name',
+                                icon: Icons.person_outline,
+                                validator:
+                                    (v) =>
+                                        (!_isLogin &&
+                                                !AppConfig
+                                                    .enableSelfRegistration)
+                                            ? null
+                                            : (v == null || v.trim().isEmpty)
                                             ? 'Required'
                                             : null,
                               ),

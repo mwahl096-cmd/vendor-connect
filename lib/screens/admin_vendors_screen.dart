@@ -76,8 +76,9 @@ class _VendorListState extends State<_VendorList> {
 
   void _removeFromCache(String vendorId) {
     if (_cachedDocs == null) return;
-    _cachedDocs =
-        _cachedDocs!.where((doc) => doc.id != vendorId).toList(growable: false);
+    _cachedDocs = _cachedDocs!
+        .where((doc) => doc.id != vendorId)
+        .toList(growable: false);
   }
 
   @override
@@ -98,15 +99,46 @@ class _VendorListState extends State<_VendorList> {
     super.dispose();
   }
 
+  String _field(Map<String, dynamic> data, String key) =>
+      (data[key] ?? '').toString().trim();
+
+  String _displayName(Map<String, dynamic> data) {
+    final firstName = _field(data, 'firstName');
+    final lastName = _field(data, 'lastName');
+    final fullName =
+        [firstName, lastName].where((part) => part.isNotEmpty).join(' ').trim();
+    if (fullName.isNotEmpty) return fullName;
+
+    final name = _field(data, 'name');
+    if (name.isNotEmpty) return name;
+
+    final username = _field(data, 'username');
+    if (username.isNotEmpty) return username;
+
+    final email = _field(data, 'email');
+    if (email.contains('@')) return email.split('@').first;
+    return email.isNotEmpty ? email : 'Unnamed vendor';
+  }
+
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _applySearch(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
     if (_searchQuery.isEmpty) return docs;
-    return docs.where((doc) {
-      final data = doc.data();
-      final name = (data['name'] ?? '').toString().toLowerCase();
-      return name.contains(_searchQuery);
-    }).toList(growable: false);
+    return docs
+        .where((doc) {
+          final data = doc.data();
+          final searchable =
+              [
+                _field(data, 'firstName'),
+                _field(data, 'lastName'),
+                _field(data, 'name'),
+                _field(data, 'username'),
+                _field(data, 'businessName'),
+                _field(data, 'email'),
+              ].join(' ').toLowerCase();
+          return searchable.contains(_searchQuery);
+        })
+        .toList(growable: false);
   }
 
   Widget _buildSearchBar() {
@@ -166,9 +198,9 @@ class _VendorListState extends State<_VendorList> {
         _inFlightIds.remove(vendorId);
       });
       if (successMessage != null && successMessage.isNotEmpty && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(successMessage)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(successMessage)));
       }
     } on FirebaseException catch (e) {
       if (!mounted) return;
@@ -185,9 +217,9 @@ class _VendorListState extends State<_VendorList> {
       setState(() {
         _inFlightIds.remove(vendorId);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update vendor')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to update vendor')));
     }
   }
 
@@ -235,9 +267,9 @@ class _VendorListState extends State<_VendorList> {
       deleted = true;
       debugPrint('Vendor $vendorId deleted via callable');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vendor deleted')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Vendor deleted')));
       }
     } on FirebaseException catch (e) {
       if (mounted) {
@@ -283,32 +315,38 @@ class _VendorListState extends State<_VendorList> {
         final snapshot = snap.data;
 
         if (snapshot != null) {
-          final filtered = snapshot.docs.where((d) {
-            final data = d.data();
-            final role = normalizedRole(data);
-            if (role != 'vendor') return false;
-            final approved = truthy(data['approved']);
-            final disabled = truthy(data['disabled']);
-            switch (widget.mode) {
-              case _VendorListMode.pending:
-                return !approved && !disabled;
-              case _VendorListMode.active:
-                return approved && !disabled;
-              case _VendorListMode.disabled:
-                return disabled;
-            }
-          }).toList()
-            ..sort(
-              (a, b) => (a.data()['name'] ?? '').toString().compareTo(
-                (b.data()['name'] ?? '').toString(),
-              ),
-            );
+          final filtered =
+              snapshot.docs.where((d) {
+                  final data = d.data();
+                  final role = normalizedRole(data);
+                  if (role != 'vendor') return false;
+                  final approved = truthy(data['approved']);
+                  final disabled = truthy(data['disabled']);
+                  switch (widget.mode) {
+                    case _VendorListMode.pending:
+                      return !approved && !disabled;
+                    case _VendorListMode.active:
+                      return approved && !disabled;
+                    case _VendorListMode.disabled:
+                      return disabled;
+                  }
+                }).toList()
+                ..sort(
+                  (a, b) => (a.data()['name'] ?? '').toString().compareTo(
+                    (b.data()['name'] ?? '').toString(),
+                  ),
+                );
 
-          if (filtered.isEmpty && snapshot.metadata.isFromCache && _cachedDocs != null) {
+          if (filtered.isEmpty &&
+              snapshot.metadata.isFromCache &&
+              _cachedDocs != null) {
             docs = _cachedDocs!;
           } else {
             docs = filtered;
-            _cachedDocs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(filtered);
+            _cachedDocs =
+                List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+                  filtered,
+                );
           }
         } else if (_cachedDocs != null) {
           docs = _cachedDocs!;
@@ -333,25 +371,29 @@ class _VendorListState extends State<_VendorList> {
         }
 
         final visibleDocs = docs
-            .where((doc) => !_deletingIds.contains(doc.id) && !_inFlightIds.contains(doc.id))
+            .where(
+              (doc) =>
+                  !_deletingIds.contains(doc.id) &&
+                  !_inFlightIds.contains(doc.id),
+            )
             .toList(growable: false);
 
         final showsSearch = widget.mode != _VendorListMode.pending;
-        final searchedDocs = showsSearch ? _applySearch(visibleDocs) : visibleDocs;
+        final searchedDocs =
+            showsSearch ? _applySearch(visibleDocs) : visibleDocs;
 
         if (searchedDocs.isEmpty) {
-          final message = showsSearch && _searchQuery.isNotEmpty
-              ? 'No vendors match "${_searchController.text.trim()}"'
-              : switch (widget.mode) {
-                  _VendorListMode.pending => 'No pending vendors',
-                  _VendorListMode.active => 'No active vendors',
-                  _VendorListMode.disabled => 'No disabled vendors',
-                };
+          final message =
+              showsSearch && _searchQuery.isNotEmpty
+                  ? 'No vendors match "${_searchController.text.trim()}"'
+                  : switch (widget.mode) {
+                    _VendorListMode.pending => 'No pending vendors',
+                    _VendorListMode.active => 'No active vendors',
+                    _VendorListMode.disabled => 'No disabled vendors',
+                  };
           final empty = Center(child: Text(message));
           if (!showsSearch) return empty;
-          return Column(
-            children: [_buildSearchBar(), Expanded(child: empty)],
-          );
+          return Column(children: [_buildSearchBar(), Expanded(child: empty)]);
         }
 
         final list = ListView.builder(
@@ -360,6 +402,10 @@ class _VendorListState extends State<_VendorList> {
           itemBuilder: (context, i) {
             final d = searchedDocs[i];
             final m = d.data();
+            final displayName = _displayName(m);
+            final businessName = _field(m, 'businessName');
+            final email = _field(m, 'email');
+            final phone = _field(m, 'phone');
             final approved = truthy(m['approved']);
             final disabled = truthy(m['disabled']);
             final busy = _isBusy(d.id);
@@ -375,25 +421,29 @@ class _VendorListState extends State<_VendorList> {
               child: Material(
                 color: Colors.white,
                 elevation: 2,
-                shadowColor: Colors.black.withOpacity(0.05),
+                shadowColor: Colors.black.withValues(alpha: 0.05),
                 shape: cardShape,
                 child: InkWell(
                   borderRadius: borderRadius,
-                  onTap: deleting || busy
-                      ? null
-                      : () async {
-                          final result = await Navigator.of(context).push<bool>(
-                            MaterialPageRoute(
-                              builder: (_) => VendorDetailScreen(vendorId: d.id),
-                            ),
-                          );
-                          if (!mounted) return;
-                          if (result == true) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(content: Text('Vendor deleted')),
+                  onTap:
+                      deleting || busy
+                          ? null
+                          : () async {
+                            final result = await Navigator.of(
+                              context,
+                            ).push<bool>(
+                              MaterialPageRoute(
+                                builder:
+                                    (_) => VendorDetailScreen(vendorId: d.id),
+                              ),
                             );
-                          }
-                        },
+                            if (!mounted) return;
+                            if (result == true) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                const SnackBar(content: Text('Vendor deleted')),
+                              );
+                            }
+                          },
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -402,42 +452,64 @@ class _VendorListState extends State<_VendorList> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                disabled
+                                    ? Icons.person_off_outlined
+                                    : approved
+                                    ? Icons.storefront_outlined
+                                    : Icons.pending_actions_outlined,
+                                color: const Color(0xFF007887),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    m['name'] ?? '',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                    displayName,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.2,
+                                    ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    m['businessName'] ?? '',
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                              color: Colors.black54,
-                                            ),
+                                  const SizedBox(height: 10),
+                                  _VendorInfoLine(
+                                    icon: Icons.business_outlined,
+                                    label: 'Business',
+                                    value:
+                                        businessName.isEmpty
+                                            ? 'Not provided'
+                                            : businessName,
+                                    highlightMissing: businessName.isEmpty,
                                   ),
+                                  if (email.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    _VendorInfoLine(
+                                      icon: Icons.email_outlined,
+                                      label: 'Email',
+                                      value: email,
+                                    ),
+                                  ],
+                                  if (phone.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    _VendorInfoLine(
+                                      icon: Icons.phone_outlined,
+                                      label: 'Phone',
+                                      value: phone,
+                                    ),
+                                  ],
                                 ],
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  m['email'] ?? '',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  m['phone'] ?? '',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -452,9 +524,10 @@ class _VendorListState extends State<_VendorList> {
                                 icon: Icons.check_circle_outline,
                                 color: primaryColor,
                                 busy: busy,
-                                onPressed: busy
-                                    ? null
-                                    : () => _updateVendorFields(
+                                onPressed:
+                                    busy
+                                        ? null
+                                        : () => _updateVendorFields(
                                           doc: d,
                                           updates: {
                                             'approved': true,
@@ -470,9 +543,10 @@ class _VendorListState extends State<_VendorList> {
                                 icon: Icons.block_outlined,
                                 color: primaryColor,
                                 busy: busy,
-                                onPressed: busy
-                                    ? null
-                                    : () => _updateVendorFields(
+                                onPressed:
+                                    busy
+                                        ? null
+                                        : () => _updateVendorFields(
                                           doc: d,
                                           updates: {
                                             'disabled': true,
@@ -488,9 +562,10 @@ class _VendorListState extends State<_VendorList> {
                                 icon: Icons.block_outlined,
                                 color: primaryColor,
                                 busy: busy,
-                                onPressed: busy
-                                    ? null
-                                    : () => _updateVendorFields(
+                                onPressed:
+                                    busy
+                                        ? null
+                                        : () => _updateVendorFields(
                                           doc: d,
                                           updates: {
                                             'disabled': true,
@@ -506,9 +581,10 @@ class _VendorListState extends State<_VendorList> {
                                 icon: Icons.check_circle_outline,
                                 color: primaryColor,
                                 busy: busy,
-                                onPressed: busy
-                                    ? null
-                                    : () => _updateVendorFields(
+                                onPressed:
+                                    busy
+                                        ? null
+                                        : () => _updateVendorFields(
                                           doc: d,
                                           updates: {
                                             'approved': true,
@@ -523,8 +599,7 @@ class _VendorListState extends State<_VendorList> {
                               icon: Icons.delete_outline,
                               color: Colors.redAccent,
                               busy: busy,
-                              onPressed:
-                                  busy ? null : () => _handleDelete(d),
+                              onPressed: busy ? null : () => _handleDelete(d),
                             ),
                           ],
                         ),
@@ -537,10 +612,50 @@ class _VendorListState extends State<_VendorList> {
           },
         );
         if (!showsSearch) return list;
-        return Column(
-          children: [_buildSearchBar(), Expanded(child: list)],
-        );
+        return Column(children: [_buildSearchBar(), Expanded(child: list)]);
       },
+    );
+  }
+}
+
+class _VendorInfoLine extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool highlightMissing;
+
+  const _VendorInfoLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.highlightMissing = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = highlightMissing ? Colors.redAccent : Colors.black54;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: color, height: 1.25),
+              children: [
+                TextSpan(
+                  text: '$label: ',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(text: value),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -591,10 +706,7 @@ class _FilledActionButton extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 18),
-            const SizedBox(width: 8),
-          ],
+          if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
           Text(label),
         ],
       );
@@ -632,11 +744,27 @@ class VendorDetailScreen extends StatelessWidget {
           final data = snap.data!.data()!;
           final disabled = truthy(data['disabled']);
           final approved = truthy(data['approved']);
+          final firstName = (data['firstName'] ?? '').toString().trim();
+          final lastName = (data['lastName'] ?? '').toString().trim();
           return Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (firstName.isNotEmpty || lastName.isNotEmpty) ...[
+                  ListTile(
+                    title: const Text('First Name'),
+                    subtitle: Text(
+                      firstName.isEmpty ? 'Not provided' : firstName,
+                    ),
+                  ),
+                  ListTile(
+                    title: const Text('Last Name'),
+                    subtitle: Text(
+                      lastName.isEmpty ? 'Not provided' : lastName,
+                    ),
+                  ),
+                ],
                 ListTile(
                   title: const Text('Name'),
                   subtitle: Text(data['name'] ?? ''),
@@ -748,10 +876,3 @@ class VendorDetailScreen extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

@@ -9,9 +9,9 @@ class VendorAdminService {
   VendorAdminService({
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ??
-            FirebaseFunctions.instanceFor(region: 'us-central1');
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
@@ -32,9 +32,7 @@ class VendorAdminService {
       await callable.call(payload);
       return;
     } on FirebaseFunctionsException catch (e) {
-      debugPrint(
-        'adminSetVendorFlags callable error: ${e.code} ${e.message}',
-      );
+      debugPrint('adminSetVendorFlags callable error: ${e.code} ${e.message}');
       if (!_canFallbackToFirestore(e.code)) {
         rethrow;
       }
@@ -57,6 +55,8 @@ class VendorAdminService {
 
   Future<void> createPendingVendorProfile({
     required String email,
+    String? firstName,
+    String? lastName,
     String? name,
     String? businessName,
     String? phone,
@@ -67,6 +67,8 @@ class VendorAdminService {
     );
     await callable.call(<String, dynamic>{
       'email': email,
+      'firstName': firstName ?? '',
+      'lastName': lastName ?? '',
       'name': name ?? '',
       'businessName': businessName ?? '',
       'phone': phone ?? '',
@@ -85,9 +87,7 @@ class VendorAdminService {
       await callable.call(<String, dynamic>{'uid': vendorId});
       return;
     } on FirebaseFunctionsException catch (e) {
-      debugPrint(
-        'adminDeleteVendor callable error: ${e.code} ${e.message}',
-      );
+      debugPrint('adminDeleteVendor callable error: ${e.code} ${e.message}');
       if (e.code != 'unimplemented' && e.code != 'unavailable') {
         rethrow;
       }
@@ -99,15 +99,17 @@ class VendorAdminService {
   }
 
   Future<void> _deleteVendorLegacy(String vendorId) async {
-    final vendorRef =
-        _firestore.collection(AppConfig.usersCollection).doc(vendorId);
+    final vendorRef = _firestore
+        .collection(AppConfig.usersCollection)
+        .doc(vendorId);
     await vendorRef.delete();
 
     try {
-      final readsSnap = await _firestore
-          .collection(AppConfig.readsCollection)
-          .where('uid', isEqualTo: vendorId)
-          .get();
+      final readsSnap =
+          await _firestore
+              .collection(AppConfig.readsCollection)
+              .where('uid', isEqualTo: vendorId)
+              .get();
       if (readsSnap.docs.isEmpty) return;
 
       final batch = _firestore.batch();
@@ -123,4 +125,3 @@ class VendorAdminService {
     }
   }
 }
-

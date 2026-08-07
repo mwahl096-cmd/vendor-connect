@@ -27,21 +27,33 @@ class AuthService extends ChangeNotifier {
   Future<void> ensureProfile(
     User u, {
     required String name,
+    String? firstName,
+    String? lastName,
     required String businessName,
     String? phone,
     String? username,
   }) async {
     final doc = _db.collection(AppConfig.usersCollection).doc(u.uid);
     final snap = await doc.get();
+    final trimmedFirstName = (firstName ?? '').trim();
+    final trimmedLastName = (lastName ?? '').trim();
+    final combinedName = [
+      trimmedFirstName,
+      trimmedLastName,
+    ].where((part) => part.isNotEmpty).join(' ');
+    final resolvedName =
+        name.trim().isNotEmpty ? name.trim() : combinedName.trim();
     final resolvedUsername = _deriveInitialUsername(
       user: u,
-      name: name,
+      name: resolvedName,
       provided: username,
     );
     if (!snap.exists) {
       await _createPendingVendorProfile(
         user: u,
-        name: name,
+        name: resolvedName,
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
         username: resolvedUsername,
         businessName: businessName,
         phone: phone,
@@ -54,9 +66,17 @@ class AuthService extends ChangeNotifier {
       if (existingUsername.trim().isEmpty && resolvedUsername.isNotEmpty) {
         updates['username'] = resolvedUsername;
       }
+      if ((data?['firstName'] ?? '').toString().trim().isEmpty &&
+          trimmedFirstName.isNotEmpty) {
+        updates['firstName'] = trimmedFirstName;
+      }
+      if ((data?['lastName'] ?? '').toString().trim().isEmpty &&
+          trimmedLastName.isNotEmpty) {
+        updates['lastName'] = trimmedLastName;
+      }
       if ((data?['name'] ?? '').toString().trim().isEmpty &&
-          name.trim().isNotEmpty) {
-        updates['name'] = name.trim();
+          resolvedName.isNotEmpty) {
+        updates['name'] = resolvedName;
       }
       if ((data?['businessName'] ?? '').toString().trim().isEmpty &&
           businessName.trim().isNotEmpty) {
@@ -77,12 +97,16 @@ class AuthService extends ChangeNotifier {
   Future<void> _createPendingVendorProfile({
     required User user,
     required String name,
+    required String firstName,
+    required String lastName,
     required String username,
     required String businessName,
     String? phone,
   }) async {
     final payload = <String, dynamic>{
       'name': name.trim(),
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
       'username': username.trim(),
       'businessName': businessName.trim(),
       'phone': (phone ?? '').trim(),
@@ -101,22 +125,25 @@ class AuthService extends ChangeNotifier {
       debugPrint('createVendorProfile callable unavailable: $err');
     }
 
-    final profile = UserProfile(
-      uid: user.uid,
-      name: name.trim(),
-      username: username.trim(),
-      businessName: businessName.trim(),
-      phone: (phone ?? '').trim(),
-      email: user.email ?? '',
-      role: 'vendor',
-      approved: false,
-      disabled: false,
-    ).toMap()
-      ..addAll({
-        'uid': user.uid,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+    final profile =
+        UserProfile(
+            uid: user.uid,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            name: name.trim(),
+            username: username.trim(),
+            businessName: businessName.trim(),
+            phone: (phone ?? '').trim(),
+            email: user.email ?? '',
+            role: 'vendor',
+            approved: false,
+            disabled: false,
+          ).toMap()
+          ..addAll({
+            'uid': user.uid,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
     await _db.collection(AppConfig.usersCollection).doc(user.uid).set(profile);
   }

@@ -174,6 +174,8 @@ export const onAuthUserCreated = functionsV1.auth.user().onCreate(async (user) =
   await userRef.set({
     uid: user.uid,
     email,
+    firstName: "",
+    lastName: "",
     name: fallbackName,
     username: email.includes("@") ? email.split("@")[0] : user.uid,
     businessName: "",
@@ -194,8 +196,13 @@ export const createVendorProfile = onCall(async (req) => {
 
   const userRecord = await admin.auth().getUser(uid);
   const email = normalizedText(userRecord.email).toLowerCase();
+  const firstName = normalizedText(req.data?.firstName);
+  const lastName = normalizedText(req.data?.lastName);
   const requestedName = normalizedText(req.data?.name);
-  const name = requestedName || normalizedText(userRecord.displayName);
+  const name =
+    requestedName ||
+    [firstName, lastName].filter(Boolean).join(" ") ||
+    normalizedText(userRecord.displayName);
   const username =
     normalizedText(req.data?.username) ||
     (email.includes("@") ? email.split("@")[0] : "") ||
@@ -206,24 +213,27 @@ export const createVendorProfile = onCall(async (req) => {
   const existing = await userRef.get();
 
   if (existing.exists) {
-    await userRef.set(
-      {
-        uid,
-        email,
-        name,
-        username,
-        businessName,
-        phone,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const updates: Record<string, unknown> = {
+      uid,
+      email,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (firstName) updates.firstName = firstName;
+    if (lastName) updates.lastName = lastName;
+    if (name) updates.name = name;
+    if (username) updates.username = username;
+    if (businessName) updates.businessName = businessName;
+    if (phone) updates.phone = phone;
+
+    await userRef.set(updates, { merge: true });
     return { ok: true, created: false };
   }
 
   await userRef.set({
     uid,
     email,
+    firstName,
+    lastName,
     name,
     username,
     businessName,
@@ -786,31 +796,34 @@ export const adminCreatePendingVendorProfile = onCall(async (req) => {
     throw new HttpsError("failed-precondition", "This account is an admin.");
   }
 
+  const firstName = normalizedText(req.data?.firstName);
+  const lastName = normalizedText(req.data?.lastName);
   const name =
     normalizedText(req.data?.name) ||
+    [firstName, lastName].filter(Boolean).join(" ") ||
     normalizedText(userRecord.displayName) ||
     (email.includes("@") ? email.split("@")[0] : email);
   const businessName = normalizedText(req.data?.businessName);
   const phone = normalizedText(req.data?.phone);
   const existingCreatedAt = existing.data()?.createdAt;
 
-  await userRef.set(
-    {
-      uid: userRecord.uid,
-      email,
-      name,
-      username: email.includes("@") ? email.split("@")[0] : email,
-      businessName,
-      phone,
-      role: "vendor",
-      approved: false,
-      disabled: false,
-      createdAt:
-        existingCreatedAt ?? admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const profileData: Record<string, unknown> = {
+    uid: userRecord.uid,
+    email,
+    name,
+    username: email.includes("@") ? email.split("@")[0] : email,
+    businessName,
+    phone,
+    role: "vendor",
+    approved: false,
+    disabled: false,
+    createdAt: existingCreatedAt ?? admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  if (firstName || !existing.exists) profileData.firstName = firstName;
+  if (lastName || !existing.exists) profileData.lastName = lastName;
+
+  await userRef.set(profileData, { merge: true });
 
   await writeAdminAudit(
     callerUid ?? "",

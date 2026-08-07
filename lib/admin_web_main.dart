@@ -71,10 +71,11 @@ class AdminAuthGate extends StatelessWidget {
         }
         if (user == null) return const AdminLoginScreen();
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection(AppConfig.usersCollection)
-              .doc(user.uid)
-              .snapshots(),
+          stream:
+              FirebaseFirestore.instance
+                  .collection(AppConfig.usersCollection)
+                  .doc(user.uid)
+                  .snapshots(),
           builder: (context, profileSnap) {
             if (profileSnap.connectionState == ConnectionState.waiting) {
               return const _LoadingScreen();
@@ -178,13 +179,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     const SizedBox(height: 22),
                     FilledButton.icon(
                       onPressed: _loading ? null : _submit,
-                      icon: _loading
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.login),
+                      icon:
+                          _loading
+                              ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.login),
                       label: const Text('Sign in'),
                     ),
                   ],
@@ -260,8 +264,8 @@ class _AdminDashboardShellState extends State<AdminDashboardShell> {
             backgroundColor: const Color(0xFFF8FBFC),
             minWidth: 120,
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) =>
-                setState(() => _selectedIndex = index),
+            onDestinationSelected:
+                (index) => setState(() => _selectedIndex = index),
             labelType: NavigationRailLabelType.all,
             useIndicator: true,
             indicatorColor: const Color(0xFFBFEFF3),
@@ -378,9 +382,10 @@ class _DashboardOverview extends StatelessWidget {
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final width = constraints.maxWidth;
-                        final cardWidth = width >= 1180
-                            ? (width - 54) / 4
-                            : width >= 880
+                        final cardWidth =
+                            width >= 1180
+                                ? (width - 54) / 4
+                                : width >= 880
                                 ? (width - 18) / 2
                                 : width;
                         return Wrap(
@@ -503,9 +508,10 @@ class _CountTile extends StatelessWidget {
     final cutoff = Timestamp.fromDate(
       DateTime.now().toUtc().subtract(const Duration(hours: 24)),
     );
-    Query<Map<String, dynamic>> query = isCollectionGroup
-        ? FirebaseFirestore.instance.collectionGroup(collection)
-        : FirebaseFirestore.instance.collection(collection);
+    Query<Map<String, dynamic>> query =
+        isCollectionGroup
+            ? FirebaseFirestore.instance.collectionGroup(collection)
+            : FirebaseFirestore.instance.collection(collection);
     if (last24HoursOnly) {
       query = query
           .where('createdAtClient', isGreaterThanOrEqualTo: cutoff)
@@ -710,10 +716,11 @@ class _RecentActivityPanel extends StatelessWidget {
       title: 'Recent User Activity',
       height: 360,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection(AppConfig.usersCollection)
-            .limit(6)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection(AppConfig.usersCollection)
+                .limit(6)
+                .snapshots(),
         builder: (context, snapshot) {
           final docs = snapshot.data?.docs ?? const [];
           if (docs.isEmpty) {
@@ -728,19 +735,25 @@ class _RecentActivityPanel extends StatelessWidget {
               Expanded(
                 child: ListView.separated(
                   itemCount: docs.length,
-                  separatorBuilder: (_, __) => Divider(
-                    height: 1,
-                    color: Colors.white.withValues(alpha: 0.14),
-                  ),
+                  separatorBuilder:
+                      (_, __) => Divider(
+                        height: 1,
+                        color: Colors.white.withValues(alpha: 0.14),
+                      ),
                   itemBuilder: (context, index) {
                     final data = docs[index].data();
-                    final name = (data['businessName'] ?? data['name'] ?? data['email'] ?? 'User')
-                        .toString();
+                    final name =
+                        (data['businessName'] ??
+                                data['name'] ??
+                                data['email'] ??
+                                'User')
+                            .toString();
                     final approved = truthy(data['approved']);
                     final disabled = truthy(data['disabled']);
-                    final status = disabled
-                        ? 'Disabled'
-                        : approved
+                    final status =
+                        disabled
+                            ? 'Disabled'
+                            : approved
                             ? 'Approved'
                             : 'Pending';
                     return Padding(
@@ -776,9 +789,10 @@ class _RecentActivityPanel extends StatelessWidget {
                             child: Text(
                               status,
                               style: TextStyle(
-                                color: approved && !disabled
-                                    ? const Color(0xFFC8F58A)
-                                    : const Color(0xFFE6A77D),
+                                color:
+                                    approved && !disabled
+                                        ? const Color(0xFFC8F58A)
+                                        : const Color(0xFFE6A77D),
                                 fontSize: 16,
                               ),
                             ),
@@ -854,7 +868,10 @@ class _OffersPanel extends StatelessWidget {
           _OfferIcon(icon: Icons.card_giftcard, color: Color(0xFFE6A77D)),
           _OfferIcon(icon: Icons.percent, color: Color(0xFFC8F58A)),
           _OfferIcon(icon: Icons.payments_outlined, color: Color(0xFFF1D08A)),
-          _OfferIcon(icon: Icons.local_offer_outlined, color: Color(0xFFBDEEF3)),
+          _OfferIcon(
+            icon: Icons.local_offer_outlined,
+            color: Color(0xFFBDEEF3),
+          ),
         ],
       ),
     );
@@ -891,7 +908,10 @@ class _CommentVolumePanel extends StatelessWidget {
       title: 'Real-time Comment Volume',
       height: 170,
       child: CustomPaint(
-        painter: const _SparklinePainter(color: Color(0xFF7FD2DF), filled: true),
+        painter: const _SparklinePainter(
+          color: Color(0xFF7FD2DF),
+          filled: true,
+        ),
         child: const SizedBox.expand(),
       ),
     );
@@ -968,10 +988,11 @@ class _CommentsAdminPageState extends State<_CommentsAdminPage> {
     final cached = _articleTitleCache[trimmedId];
     if (cached != null) return cached;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection(AppConfig.articlesCollection)
-        .doc(trimmedId)
-        .get();
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection(AppConfig.articlesCollection)
+            .doc(trimmedId)
+            .get();
     final data = snapshot.data();
     final title = (data?['title'] ?? '').toString().trim();
     final resolved = title.isEmpty ? 'Article $trimmedId' : title;
@@ -983,24 +1004,26 @@ class _CommentsAdminPageState extends State<_CommentsAdminPage> {
     final controller = TextEditingController();
     final reply = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reply to comment'),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          decoration: const InputDecoration(labelText: 'Reply'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Reply to comment'),
+            content: TextField(
+              controller: controller,
+              maxLines: 5,
+              decoration: const InputDecoration(labelText: 'Reply'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed:
+                    () => Navigator.of(context).pop(controller.text.trim()),
+                child: const Text('Save reply'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Save reply'),
-          ),
-        ],
-      ),
     );
     if (reply == null || reply.isEmpty) return;
     final user = FirebaseAuth.instance.currentUser;
@@ -1016,20 +1039,21 @@ class _CommentsAdminPageState extends State<_CommentsAdminPage> {
   Future<void> _delete(DocumentReference<Map<String, dynamic>> ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete comment'),
-        content: const Text('This removes the comment from the app.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete comment'),
+            content: const Text('This removes the comment from the app.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
     if (confirmed == true) await ref.delete();
   }
@@ -1128,9 +1152,7 @@ class _CommentsAdminPageState extends State<_CommentsAdminPage> {
         .limit(1000);
   }
 
-  String _articleIdForComment(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
+  String _articleIdForComment(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final fromData = (doc.data()['articleId'] ?? '').toString().trim();
     if (fromData.isNotEmpty) return fromData;
     return doc.reference.parent.parent?.id ?? '';
@@ -1242,17 +1264,19 @@ class _ArticleFilterDropdown extends StatelessWidget {
     return SizedBox(
       width: 360,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection(AppConfig.articlesCollection)
-            .orderBy('publishedAt', descending: true)
-            .limit(250)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection(AppConfig.articlesCollection)
+                .orderBy('publishedAt', descending: true)
+                .limit(250)
+                .snapshots(),
         builder: (context, snapshot) {
           final docs = snapshot.data?.docs ?? const [];
           final ids = docs.map((doc) => doc.id).toSet();
-          final value = selectedArticleId != null && ids.contains(selectedArticleId)
-              ? selectedArticleId
-              : null;
+          final value =
+              selectedArticleId != null && ids.contains(selectedArticleId)
+                  ? selectedArticleId
+                  : null;
           return DropdownButtonFormField<String?>(
             value: value,
             isExpanded: true,
@@ -1310,9 +1334,9 @@ class _ArticlesAdminPageState extends State<_ArticlesAdminPage> {
       final articleId = (data['articleId'] ?? '').toString().trim();
       if (articleId.isEmpty) continue;
       final uid = (data['uid'] ?? '').toString().trim();
-      uniqueReaders.putIfAbsent(articleId, () => <String>{}).add(
-            uid.isEmpty ? doc.id : uid,
-          );
+      uniqueReaders
+          .putIfAbsent(articleId, () => <String>{})
+          .add(uid.isEmpty ? doc.id : uid);
     }
     return uniqueReaders.map(
       (articleId, readers) => MapEntry(articleId, readers.length),
@@ -1339,26 +1363,28 @@ class _ArticlesAdminPageState extends State<_ArticlesAdminPage> {
             decoration: InputDecoration(
               labelText: 'Search articles',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        _search.clear();
-                        setState(() {});
-                      },
-                    ),
+              suffixIcon:
+                  _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _search.clear();
+                          setState(() {});
+                        },
+                      ),
             ),
           ),
         ),
       ],
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection(AppConfig.articlesCollection)
-            .orderBy('publishedAt', descending: true)
-            .limit(500)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection(AppConfig.articlesCollection)
+                .orderBy('publishedAt', descending: true)
+                .limit(500)
+                .snapshots(),
         builder: (context, articleSnapshot) {
           if (articleSnapshot.connectionState == ConnectionState.waiting) {
             return const LinearProgressIndicator();
@@ -1379,9 +1405,10 @@ class _ArticlesAdminPageState extends State<_ArticlesAdminPage> {
               .toList(growable: false);
 
           return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection(AppConfig.readsCollection)
-                .snapshots(),
+            stream:
+                FirebaseFirestore.instance
+                    .collection(AppConfig.readsCollection)
+                    .snapshots(),
             builder: (context, readsSnapshot) {
               if (readsSnapshot.connectionState == ConnectionState.waiting) {
                 return const LinearProgressIndicator();
@@ -1392,13 +1419,15 @@ class _ArticlesAdminPageState extends State<_ArticlesAdminPage> {
 
               final counts = _readCounts(readsSnapshot.data?.docs ?? const []);
               final needle = _search.text.trim().toLowerCase();
-              final visible = articles.where((article) {
-                if (needle.isEmpty) return true;
-                final haystack =
-                    '${article.id} ${article.wpId} ${article.title} ${article.status}'
-                        .toLowerCase();
-                return haystack.contains(needle);
-              }).toList(growable: false);
+              final visible = articles
+                  .where((article) {
+                    if (needle.isEmpty) return true;
+                    final haystack =
+                        '${article.id} ${article.wpId} ${article.title} ${article.status}'
+                            .toLowerCase();
+                    return haystack.contains(needle);
+                  })
+                  .toList(growable: false);
 
               if (visible.isEmpty) {
                 if (needle.isNotEmpty) {
@@ -1424,9 +1453,11 @@ class _ArticlesAdminPageState extends State<_ArticlesAdminPage> {
                         final reads = counts[article.id] ?? 0;
                         return ListTile(
                           leading: const Icon(Icons.article_outlined),
-                          title: Text(article.title.isEmpty
-                              ? 'Article ${article.id}'
-                              : article.title),
+                          title: Text(
+                            article.title.isEmpty
+                                ? 'Article ${article.id}'
+                                : article.title,
+                          ),
                           subtitle: Text(
                             'Published ${_dateLabel(article.publishedAt)} - ${article.status} - Article ${article.id}',
                           ),
@@ -1438,9 +1469,7 @@ class _ArticlesAdminPageState extends State<_ArticlesAdminPage> {
                               children: [
                                 Text(
                                   reads.toString(),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
+                                  style: Theme.of(context).textTheme.titleLarge
                                       ?.copyWith(fontWeight: FontWeight.w800),
                                 ),
                                 const Text('Reads / Views'),
@@ -1477,29 +1506,30 @@ class _LoyaltyAdminPageState extends State<_LoyaltyAdminPage> {
       builder: (context) => _LoyaltyEditor(partner: partner),
     );
     if (saved == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Loyalty benefit saved.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Loyalty benefit saved.')));
     }
   }
 
   Future<void> _delete(LoyaltyPartner partner) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete loyalty benefit'),
-        content: Text('Delete ${partner.businessName}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete loyalty benefit'),
+            content: Text('Delete ${partner.businessName}?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
     if (confirmed == true) await _service.deletePartner(partner.id);
   }
@@ -1667,8 +1697,8 @@ class _LoyaltyEditorState extends State<_LoyaltyEditor> {
                       DropdownMenuItem(value: r'$', child: Text(r'$ off')),
                       DropdownMenuItem(value: '%', child: Text('% off')),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _offerUnit = value ?? r'$'),
+                    onChanged:
+                        (value) => setState(() => _offerUnit = value ?? r'$'),
                   ),
                 ),
                 _field(_address, 'Address'),
@@ -1755,19 +1785,21 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
         disabled: disabled,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } on FirebaseException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update user: ${e.message ?? e.code}')),
+        SnackBar(
+          content: Text('Failed to update user: ${e.message ?? e.code}'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update user: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update user: $e')));
     } finally {
       if (mounted) setState(() => _busyUid = null);
     }
@@ -1776,29 +1808,30 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
   Future<void> _deleteUser(String uid, String label) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove user'),
-        content: Text('Remove $label from Vendor Connect?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Remove user'),
+            content: Text('Remove $label from Vendor Connect?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Remove'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
     );
     if (confirmed != true) return;
     setState(() => _busyUid = uid);
     try {
       await _service.deleteVendor(uid);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User removed.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User removed.')));
     } finally {
       if (mounted) setState(() => _busyUid = null);
     }
@@ -1820,12 +1853,20 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
     return true;
   }
 
+  String _field(Map<String, dynamic> data, String key) =>
+      (data[key] ?? '').toString().trim();
+
   String _displayName(Map<String, dynamic> data, String fallback) {
-    final business = (data['businessName'] ?? '').toString().trim();
-    if (business.isNotEmpty) return business;
-    final name = (data['name'] ?? '').toString().trim();
+    final firstName = _field(data, 'firstName');
+    final lastName = _field(data, 'lastName');
+    final fullName =
+        [firstName, lastName].where((part) => part.isNotEmpty).join(' ').trim();
+    if (fullName.isNotEmpty) return fullName;
+    final name = _field(data, 'name');
     if (name.isNotEmpty) return name;
-    final email = (data['email'] ?? '').toString().trim();
+    final business = _field(data, 'businessName');
+    if (business.isNotEmpty) return business;
+    final email = _field(data, 'email');
     if (email.isNotEmpty) return email;
     return fallback;
   }
@@ -1845,61 +1886,79 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
 
   Future<void> _repairMissingPendingUser() async {
     final emailController = TextEditingController();
-    final nameController = TextEditingController();
+    final firstNameController = TextEditingController();
+    final lastNameController = TextEditingController();
     final businessController = TextEditingController();
     final phoneController = TextEditingController();
     final values = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add missing pending user'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'Registered email'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Add missing pending user'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: emailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Registered email',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: firstNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'First name optional',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: lastNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Last name optional',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: businessController,
+                    decoration: const InputDecoration(
+                      labelText: 'Business name optional',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone optional',
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Name optional'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: businessController,
-                decoration: const InputDecoration(
-                  labelText: 'Business name optional',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: 'Phone optional'),
+              FilledButton(
+                onPressed:
+                    () => Navigator.of(context).pop({
+                      'email': emailController.text.trim(),
+                      'firstName': firstNameController.text.trim(),
+                      'lastName': lastNameController.text.trim(),
+                      'businessName': businessController.text.trim(),
+                      'phone': phoneController.text.trim(),
+                    }),
+                child: const Text('Create pending profile'),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop({
-              'email': emailController.text.trim(),
-              'name': nameController.text.trim(),
-              'businessName': businessController.text.trim(),
-              'phone': phoneController.text.trim(),
-            }),
-            child: const Text('Create pending profile'),
-          ),
-        ],
-      ),
     );
     emailController.dispose();
-    nameController.dispose();
+    firstNameController.dispose();
+    lastNameController.dispose();
     businessController.dispose();
     phoneController.dispose();
 
@@ -1917,7 +1976,12 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
     try {
       await _service.createPendingVendorProfile(
         email: email,
-        name: values['name'],
+        firstName: values['firstName'],
+        lastName: values['lastName'],
+        name: [
+          values['firstName'] ?? '',
+          values['lastName'] ?? '',
+        ].where((part) => part.trim().isNotEmpty).join(' '),
         businessName: values['businessName'],
         phone: values['phone'],
       );
@@ -1928,9 +1992,9 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
       );
     } on FirebaseException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? e.code)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message ?? e.code)));
     } finally {
       if (mounted) setState(() => _busyUid = null);
     }
@@ -1943,7 +2007,9 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
       actions: [
         FilledButton.icon(
           onPressed:
-              _busyUid == '_repair_pending_user' ? null : _repairMissingPendingUser,
+              _busyUid == '_repair_pending_user'
+                  ? null
+                  : _repairMissingPendingUser,
           icon: const Icon(Icons.person_add_alt_1),
           label: const Text('Add missing pending user'),
         ),
@@ -1956,16 +2022,17 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
             decoration: InputDecoration(
               labelText: 'Search users',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        _search.clear();
-                        setState(() {});
-                      },
-                    ),
+              suffixIcon:
+                  _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _search.clear();
+                          setState(() {});
+                        },
+                      ),
             ),
           ),
         ),
@@ -1981,137 +2048,168 @@ class _UsersAdminPageState extends State<_UsersAdminPage> {
           const SizedBox(height: 16),
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection(AppConfig.usersCollection)
-                  .snapshots(),
+              stream:
+                  FirebaseFirestore.instance
+                      .collection(AppConfig.usersCollection)
+                      .snapshots(),
               builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LinearProgressIndicator();
-          }
-          final needle = _search.text.trim().toLowerCase();
-          final docs = (snapshot.data?.docs ?? const [])
-              .where((doc) {
-                final data = doc.data();
-                if (!_matchesFilter(data)) return false;
-                if (needle.isEmpty) return true;
-                final haystack =
-                    '${data['name']} ${data['businessName']} ${data['email']} ${data['phone']}'
-                        .toLowerCase();
-                return haystack.contains(needle);
-              })
-              .toList(growable: false)
-            ..sort((a, b) {
-              final left = _displayName(a.data(), a.id).toLowerCase();
-              final right = _displayName(b.data(), b.id).toLowerCase();
-              return left.compareTo(right);
-            });
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const LinearProgressIndicator();
+                }
+                final needle = _search.text.trim().toLowerCase();
+                final docs = (snapshot.data?.docs ?? const [])
+                  .where((doc) {
+                    final data = doc.data();
+                    if (!_matchesFilter(data)) return false;
+                    if (needle.isEmpty) return true;
+                    final haystack =
+                        [
+                          data['firstName'],
+                          data['lastName'],
+                          data['name'],
+                          data['username'],
+                          data['businessName'],
+                          data['email'],
+                          data['phone'],
+                        ].join(' ').toLowerCase();
+                    return haystack.contains(needle);
+                  })
+                  .toList(growable: false)..sort((a, b) {
+                  final left = _displayName(a.data(), a.id).toLowerCase();
+                  final right = _displayName(b.data(), b.id).toLowerCase();
+                  return left.compareTo(right);
+                });
 
-          if (docs.isEmpty) {
-            final filterName = _filterLabel(_filter).toLowerCase();
-            if (needle.isNotEmpty) {
-              return Text('No $filterName match "${_search.text.trim()}".');
-            }
-            return Text('No $filterName found.');
-          }
+                if (docs.isEmpty) {
+                  final filterName = _filterLabel(_filter).toLowerCase();
+                  if (needle.isNotEmpty) {
+                    return Text(
+                      'No $filterName match "${_search.text.trim()}".',
+                    );
+                  }
+                  return Text('No $filterName found.');
+                }
 
-          return ListView.separated(
-            itemCount: docs.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final data = doc.data();
-              final role = normalizedRole(data);
-              final approved = truthy(data['approved']);
-              final disabled = truthy(data['disabled']);
-              final label = _displayName(data, doc.id);
-              final email = (data['email'] ?? '').toString();
-              final isAdmin = role == 'admin';
-              final isCurrentUser =
-                  FirebaseAuth.instance.currentUser?.uid == doc.id;
-              final busy = _busyUid == doc.id;
-              final status = isAdmin
-                  ? 'Admin'
-                  : disabled
-                      ? 'Disabled'
-                      : approved
-                          ? 'Approved'
-                          : 'Pending';
+                return ListView.separated(
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data();
+                    final role = normalizedRole(data);
+                    final approved = truthy(data['approved']);
+                    final disabled = truthy(data['disabled']);
+                    final label = _displayName(data, doc.id);
+                    final email = _field(data, 'email');
+                    final businessName = _field(data, 'businessName');
+                    final isAdmin = role == 'admin';
+                    final isCurrentUser =
+                        FirebaseAuth.instance.currentUser?.uid == doc.id;
+                    final busy = _busyUid == doc.id;
+                    final status =
+                        isAdmin
+                            ? 'Admin'
+                            : disabled
+                            ? 'Disabled'
+                            : approved
+                            ? 'Approved'
+                            : 'Pending';
 
-              return ListTile(
-                leading: Icon(
-                  isAdmin
-                      ? Icons.admin_panel_settings
-                      : approved && !disabled
-                          ? Icons.verified_user_outlined
-                          : Icons.pending_actions_outlined,
-                ),
-                title: Text(label),
-                subtitle: Text('$email - $status'),
-                trailing: busy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Wrap(
-                        spacing: 8,
+                    return ListTile(
+                      leading: Icon(
+                        isAdmin
+                            ? Icons.admin_panel_settings
+                            : approved && !disabled
+                            ? Icons.verified_user_outlined
+                            : Icons.pending_actions_outlined,
+                      ),
+                      title: Text(label),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (!isAdmin && !approved && !disabled)
-                            TextButton.icon(
-                              onPressed: () => _setFlags(
-                                doc.id,
-                                approved: true,
-                                disabled: false,
-                                message: 'Pending user accepted.',
-                              ),
-                              icon: const Icon(Icons.check_circle_outline),
-                              label: const Text('Accept'),
-                            ),
-                          if (!isAdmin && !approved && !disabled)
-                            TextButton.icon(
-                              onPressed: () => _setFlags(
-                                doc.id,
-                                approved: false,
-                                disabled: true,
-                                message: 'Pending user rejected.',
-                              ),
-                              icon: const Icon(Icons.block),
-                              label: const Text('Reject'),
-                            ),
-                          if (!isAdmin && disabled)
-                            TextButton.icon(
-                              onPressed: () => _setFlags(
-                                doc.id,
-                                approved: true,
-                                disabled: false,
-                                message: 'User activated.',
-                              ),
-                              icon: const Icon(Icons.check_circle_outline),
-                              label: const Text('Activate'),
-                            ),
-                          if (!isAdmin && approved && !disabled)
-                            TextButton.icon(
-                              onPressed: () => _setFlags(
-                                doc.id,
-                                approved: false,
-                                disabled: true,
-                                message: 'User disabled.',
-                              ),
-                              icon: const Icon(Icons.block),
-                              label: const Text('Disable'),
-                            ),
-                          if (!isAdmin && !isCurrentUser)
-                            IconButton(
-                              tooltip: 'Remove user',
-                              onPressed: () => _deleteUser(doc.id, label),
-                              icon: const Icon(Icons.delete_outline),
-                            ),
+                          Text(
+                            'Business: ${businessName.isEmpty ? 'Not provided' : businessName}',
+                          ),
+                          Text('$email - $status'),
                         ],
                       ),
-              );
-            },
-          );
-        },
+                      trailing:
+                          busy
+                              ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : Wrap(
+                                spacing: 8,
+                                children: [
+                                  if (!isAdmin && !approved && !disabled)
+                                    TextButton.icon(
+                                      onPressed:
+                                          () => _setFlags(
+                                            doc.id,
+                                            approved: true,
+                                            disabled: false,
+                                            message: 'Pending user accepted.',
+                                          ),
+                                      icon: const Icon(
+                                        Icons.check_circle_outline,
+                                      ),
+                                      label: const Text('Accept'),
+                                    ),
+                                  if (!isAdmin && !approved && !disabled)
+                                    TextButton.icon(
+                                      onPressed:
+                                          () => _setFlags(
+                                            doc.id,
+                                            approved: false,
+                                            disabled: true,
+                                            message: 'Pending user rejected.',
+                                          ),
+                                      icon: const Icon(Icons.block),
+                                      label: const Text('Reject'),
+                                    ),
+                                  if (!isAdmin && disabled)
+                                    TextButton.icon(
+                                      onPressed:
+                                          () => _setFlags(
+                                            doc.id,
+                                            approved: true,
+                                            disabled: false,
+                                            message: 'User activated.',
+                                          ),
+                                      icon: const Icon(
+                                        Icons.check_circle_outline,
+                                      ),
+                                      label: const Text('Activate'),
+                                    ),
+                                  if (!isAdmin && approved && !disabled)
+                                    TextButton.icon(
+                                      onPressed:
+                                          () => _setFlags(
+                                            doc.id,
+                                            approved: false,
+                                            disabled: true,
+                                            message: 'User disabled.',
+                                          ),
+                                      icon: const Icon(Icons.block),
+                                      label: const Text('Disable'),
+                                    ),
+                                  if (!isAdmin && !isCurrentUser)
+                                    IconButton(
+                                      tooltip: 'Remove user',
+                                      onPressed:
+                                          () => _deleteUser(doc.id, label),
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
+                                ],
+                              ),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],
@@ -2136,25 +2234,30 @@ class _UserFilterTabs extends StatelessWidget {
     return Wrap(
       spacing: 10,
       runSpacing: 10,
-      children: _UserStatusFilter.values.map((filter) {
-        final isSelected = filter == selected;
-        return ChoiceChip(
-          selected: isSelected,
-          label: Text(labelFor(filter)),
-          onSelected: (_) => onSelected(filter),
-          labelStyle: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: isSelected ? Colors.white : const Color(0xFF183139),
-          ),
-          selectedColor: const Color(0xFF0A5864),
-          backgroundColor: const Color(0xFFEAF3F4),
-          side: BorderSide(
-            color: isSelected ? const Color(0xFF0A5864) : const Color(0xFFB8CDD1),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        );
-      }).toList(growable: false),
+      children: _UserStatusFilter.values
+          .map((filter) {
+            final isSelected = filter == selected;
+            return ChoiceChip(
+              selected: isSelected,
+              label: Text(labelFor(filter)),
+              onSelected: (_) => onSelected(filter),
+              labelStyle: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: isSelected ? Colors.white : const Color(0xFF183139),
+              ),
+              selectedColor: const Color(0xFF0A5864),
+              backgroundColor: const Color(0xFFEAF3F4),
+              side: BorderSide(
+                color:
+                    isSelected
+                        ? const Color(0xFF0A5864)
+                        : const Color(0xFFB8CDD1),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            );
+          })
+          .toList(growable: false),
     );
   }
 }
@@ -2187,32 +2290,40 @@ class _SparklinePainter extends CustomPainter {
         (previous.dx + current.dx) / 2,
         (previous.dy + current.dy) / 2,
       );
-      path.quadraticBezierTo(previous.dx, previous.dy, midpoint.dx, midpoint.dy);
+      path.quadraticBezierTo(
+        previous.dx,
+        previous.dy,
+        midpoint.dx,
+        midpoint.dy,
+      );
     }
     path.lineTo(points.last.dx, points.last.dy);
 
     if (filled) {
-      final fillPath = Path.from(path)
-        ..lineTo(size.width, size.height)
-        ..lineTo(0, size.height)
-        ..close();
-      final fillPaint = Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            color.withValues(alpha: 0.30),
-            color.withValues(alpha: 0.02),
-          ],
-        ).createShader(Offset.zero & size);
+      final fillPath =
+          Path.from(path)
+            ..lineTo(size.width, size.height)
+            ..lineTo(0, size.height)
+            ..close();
+      final fillPaint =
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                color.withValues(alpha: 0.30),
+                color.withValues(alpha: 0.02),
+              ],
+            ).createShader(Offset.zero & size);
       canvas.drawPath(fillPath, fillPaint);
     }
 
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round;
     canvas.drawPath(path, paint);
   }
 
@@ -2225,9 +2336,10 @@ class _SparklinePainter extends CustomPainter {
 class _BarChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.16)
-      ..strokeWidth = 1;
+    final gridPaint =
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.16)
+          ..strokeWidth = 1;
     final labelStyle = TextStyle(
       color: Colors.white.withValues(alpha: 0.86),
       fontSize: 13,
@@ -2298,12 +2410,13 @@ class _BarChartPainter extends CustomPainter {
   }
 
   void _drawBar(Canvas canvas, Rect rect, Color color) {
-    final paint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color, color.withValues(alpha: 0.35)],
-      ).createShader(rect);
+    final paint =
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [color, color.withValues(alpha: 0.35)],
+          ).createShader(rect);
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(5)),
       paint,
@@ -2333,37 +2446,39 @@ class _AdminsPageState extends State<_AdminsPage> {
     final controller = TextEditingController();
     final email = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add admin'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(labelText: 'Admin email'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Add admin'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(labelText: 'Admin email'),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'If this email does not have an account yet, one will be created and a password setup email will be sent.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                'If this email does not have an account yet, one will be created and a password setup email will be sent.',
-                style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed:
+                    () => Navigator.of(context).pop(controller.text.trim()),
+                child: const Text('Add admin'),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Add admin'),
-          ),
-        ],
-      ),
     );
     if (email == null || email.isEmpty) return;
     try {
@@ -2396,50 +2511,51 @@ class _AdminsPageState extends State<_AdminsPage> {
       _reload();
     } catch (err) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not add admin: $err')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not add admin: $err')));
     }
   }
 
   Future<void> _showSetupLink(String email, String setupLink) async {
     await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Admin setup link'),
-        content: SizedBox(
-          width: 560,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'If $email does not receive the password setup email, copy this link and send it manually.',
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Admin setup link'),
+            content: SizedBox(
+              width: 560,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'If $email does not receive the password setup email, copy this link and send it manually.',
+                  ),
+                  const SizedBox(height: 12),
+                  SelectableText(setupLink),
+                ],
               ),
-              const SizedBox(height: 12),
-              SelectableText(setupLink),
+            ),
+            actions: [
+              TextButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: setupLink));
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Setup link copied.')),
+                  );
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text('Copy link'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Done'),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: setupLink));
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Setup link copied.')),
-              );
-            },
-            icon: const Icon(Icons.copy),
-            label: const Text('Copy link'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Done'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -2453,20 +2569,21 @@ class _AdminsPageState extends State<_AdminsPage> {
     }
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove admin'),
-        content: Text('Remove admin access for ${admin.email}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Remove admin'),
+            content: Text('Remove admin access for ${admin.email}?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Remove'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
     );
     if (confirmed == true) {
       await _service.removeAdmin(admin.uid);
