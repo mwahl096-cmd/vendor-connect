@@ -248,6 +248,83 @@ export const createVendorProfile = onCall(async (req) => {
   return { ok: true, created: true };
 });
 
+export const recoverExistingVendorRegistration = onCall(async (req) => {
+  const email = normalizedText(req.data?.email).toLowerCase();
+  if (!email || !email.includes("@")) {
+    throw new HttpsError("invalid-argument", "A valid email is required");
+  }
+
+  let userRecord: admin.auth.UserRecord;
+  try {
+    userRecord = await admin.auth().getUserByEmail(email);
+  } catch (err: any) {
+    if (err?.code === "auth/user-not-found") {
+      // Do not expose whether an email exists in Firebase Auth.
+      return { ok: true, recovered: false };
+    }
+    throw err;
+  }
+
+  const userRef = admin.firestore().doc(`users/${userRecord.uid}`);
+  const existing = await userRef.get();
+  const existingData = existing.data();
+  if (existing.exists && normalizedRole(existingData) === "admin") {
+    return { ok: true, recovered: false };
+  }
+
+  const firstName = normalizedText(req.data?.firstName);
+  const lastName = normalizedText(req.data?.lastName);
+  const requestedName = normalizedText(req.data?.name);
+  const name =
+    requestedName ||
+    [firstName, lastName].filter(Boolean).join(" ") ||
+    normalizedText(userRecord.displayName) ||
+    (email.includes("@") ? email.split("@")[0] : email);
+  const businessName = normalizedText(req.data?.businessName);
+  const phone = normalizedText(req.data?.phone);
+
+  if (existing.exists) {
+    const updates: Record<string, unknown> = {
+      uid: userRecord.uid,
+      email,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (firstName && !normalizedText(existingData?.firstName)) updates.firstName = firstName;
+    if (lastName && !normalizedText(existingData?.lastName)) updates.lastName = lastName;
+    if (name && !normalizedText(existingData?.name)) updates.name = name;
+    if (businessName && !normalizedText(existingData?.businessName)) {
+      updates.businessName = businessName;
+    }
+    if (phone && !normalizedText(existingData?.phone)) updates.phone = phone;
+
+    await userRef.set(updates, { merge: true });
+    return { ok: true, recovered: false, profileExists: true };
+  }
+
+  await userRef.set({
+    uid: userRecord.uid,
+    email,
+    firstName,
+    lastName,
+    name,
+    username: email.includes("@") ? email.split("@")[0] : userRecord.uid,
+    businessName,
+    phone,
+    role: "vendor",
+    approved: false,
+    disabled: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  logger.info("Recovered missing vendor profile for existing Auth user", {
+    uid: userRecord.uid,
+    email,
+  });
+
+  return { ok: true, recovered: true, profileExists: false };
+});
+
 function preview(value: string, maxLength = 110): string {
   const compact = value.replace(/\s+/g, " ").trim();
   if (compact.length <= maxLength) return compact;

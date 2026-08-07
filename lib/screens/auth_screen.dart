@@ -71,6 +71,70 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  String get _registrationFullName {
+    final firstName = _firstName.text.trim();
+    final lastName = _lastName.text.trim();
+    return [
+      firstName,
+      lastName,
+    ].where((part) => part.isNotEmpty).join(' ').trim();
+  }
+
+  Future<void> _recoverExistingRegistration(AuthService auth) async {
+    final email = _email.text.trim();
+    final firstName = _firstName.text.trim();
+    final lastName = _lastName.text.trim();
+    final fullName = _registrationFullName;
+    var profileRecovered = false;
+    Object? recoveryError;
+
+    try {
+      profileRecovered = await auth.recoverExistingVendorRegistration(
+        email: email,
+        name: fullName,
+        firstName: firstName,
+        lastName: lastName,
+        businessName: _business.text.trim(),
+        phone: _phone.text.trim(),
+      );
+    } catch (err) {
+      recoveryError = err;
+    }
+
+    var resetSent = false;
+    Object? resetError;
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      resetSent = true;
+    } catch (err) {
+      resetError = err;
+    }
+
+    if (!mounted) return;
+    final message =
+        resetSent
+            ? recoveryError == null
+                ? 'This email already has an account. We restored the pending vendor profile if it was missing and sent a password reset link to $email. Please reset the password, then sign in.'
+                : 'This email already has an account. A password reset link was sent to $email. If the admin still cannot see your request, please contact support.'
+            : 'This email already has an account. The pending vendor profile was ${profileRecovered ? 'checked' : 'not recovered'}. Password reset could not be sent: ${resetError ?? recoveryError ?? 'please try again later'}.';
+    await showDialog<void>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Account already exists'),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+    );
+    if (!mounted) return;
+    setState(() => _isLogin = true);
+  }
+
   Future<void> _submit() async {
     if (!_isLogin && !AppConfig.enableSelfRegistration) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,16 +158,21 @@ class _AuthScreenState extends State<AuthScreen> {
           password: _password.text,
         );
       } else {
-        cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _email.text.trim(),
-          password: _password.text,
-        );
+        try {
+          cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: _email.text.trim(),
+            password: _password.text,
+          );
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'email-already-in-use') {
+            await _recoverExistingRegistration(auth);
+            return;
+          }
+          rethrow;
+        }
         final firstName = _firstName.text.trim();
         final lastName = _lastName.text.trim();
-        final fullName = [
-          firstName,
-          lastName,
-        ].where((part) => part.isNotEmpty).join(' ');
+        final fullName = _registrationFullName;
         try {
           await auth.ensureProfile(
             cred.user!,
@@ -225,8 +294,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                                 !AppConfig
                                                     .enableSelfRegistration)
                                             ? null
-                                            : (v == null || v.isEmpty)
-                                            ? 'Required'
+                                            : (v == null || v.trim().isEmpty)
+                                            ? 'First name is required'
                                             : null,
                               ),
                               const SizedBox(height: 12),
@@ -241,7 +310,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                                     .enableSelfRegistration)
                                             ? null
                                             : (v == null || v.trim().isEmpty)
-                                            ? 'Required'
+                                            ? 'Last name is required'
                                             : null,
                               ),
                               const SizedBox(height: 12),
@@ -255,8 +324,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                                 !AppConfig
                                                     .enableSelfRegistration)
                                             ? null
-                                            : (v == null || v.isEmpty)
-                                            ? 'Required'
+                                            : (v == null || v.trim().isEmpty)
+                                            ? 'Business name is required'
                                             : null,
                               ),
                               const SizedBox(height: 12),

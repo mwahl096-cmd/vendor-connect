@@ -24,6 +24,33 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> recoverExistingVendorRegistration({
+    required String email,
+    required String name,
+    String? firstName,
+    String? lastName,
+    required String businessName,
+    String? phone,
+  }) async {
+    final callable = _functions.httpsCallable(
+      'recoverExistingVendorRegistration',
+      options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+    );
+    final result = await callable.call(<String, dynamic>{
+      'email': email.trim(),
+      'name': name.trim(),
+      'firstName': (firstName ?? '').trim(),
+      'lastName': (lastName ?? '').trim(),
+      'businessName': businessName.trim(),
+      'phone': (phone ?? '').trim(),
+    });
+    final data = result.data;
+    if (data is Map) {
+      return data['recovered'] == true || data['profileExists'] == true;
+    }
+    return false;
+  }
+
   Future<void> ensureProfile(
     User u, {
     required String name,
